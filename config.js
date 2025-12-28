@@ -27,8 +27,8 @@ const CONFIG = {
     // CLIENT_ID: Identifica la aplicación ante Google
     // API_KEY: Clave para acceder a la API de Google Sheets
     // ══════════════════════════════════════════════════════════════════════════
-    CLIENT_ID: '488089624210-ns62tr4g9rqov3k2b85965c4p4fto028.apps.googleusercontent.com',
-    API_KEY: 'AIzaSyDsIk-N9hDAzZN7vc9b2rUIhcA7D8ViOFk',
+    CLIENT_ID: '814005655098-8csk41qts3okv4b2fjnq7ls4qc2kq0vc.apps.googleusercontent.com',
+    API_KEY: 'AIzaSyAOhGTjJXHhuUhqf1g2DPCla59xNzftb-Q',
     
     // ══════════════════════════════════════════════════════════════════════════
     // ID DE LA CARPETA DE GOOGLE DRIVE PARA ARCHIVOS ADJUNTOS
