@@ -18,7 +18,7 @@ const CONFIG = {
     // Este ID se encuentra en la URL de tu Google Sheet:
     // https://docs.google.com/spreadsheets/d/[ESTE_ES_EL_ID]/edit
     // ══════════════════════════════════════════════════════════════════════════
-    GOOGLE_SHEET_ID: '1AmFocVwvywXz6LOwggkFscXjEhx_FZvZCVmb-1ihm5I',
+    GOOGLE_SHEET_ID: '11oCI6wOd_w2-YvVyChTeNvVlM-ULw0Ha2Yey4c08AhY',
     
     // ══════════════════════════════════════════════════════════════════════════
     // CREDENCIALES DE GOOGLE API
