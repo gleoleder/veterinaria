@@ -550,6 +550,29 @@ body {
 
 .attachment-badge:hover { background: #7B6BA8; color: white; }
 
+.pdf-badge {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+    color: white !important;
+}
+
+.pdf-badge:hover {
+    background: linear-gradient(135deg, #c0392b, #a93226);
+    color: white !important;
+}
+
+.history-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.history-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+}
+
 /* ══════════════════════════════════════════════════════════════════════
    MODALES
    ══════════════════════════════════════════════════════════════════════ */
