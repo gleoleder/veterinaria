@@ -1391,7 +1391,7 @@ function removeFile(index) {
 
 // ╔════════════════════════════════════════════════════════════════════════════╗
 // ║                    GENERADOR DE PDF - HISTORIAL CLÍNICO                     ║
-// ║                    Usando html2pdf.js                                        ║
+// ║                    Basado en el sistema PHP de reportes                     ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
 
 /**
@@ -1421,54 +1421,83 @@ const TIPOS_MASCOTA = {
  * Llena el template del PDF con los datos del historial
  */
 function fillPdfTemplate(historyId, historyData, pet, client) {
+    console.log('📝 Llenando template PDF...');
+    
     const fechaHoy = new Date().toLocaleDateString('es-ES', { 
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
     });
     
-    // Datos del documento
-    document.getElementById('pdfDocNumber').textContent = 'HC-' + historyId;
-    document.getElementById('pdfFechaDoc').textContent = 'Fecha: ' + fechaHoy;
+    // Verificar que existen los elementos
+    const elements = {
+        'pdfDocNumber': 'HC-' + historyId,
+        'pdfFechaDoc': 'Fecha: ' + fechaHoy,
+        'pdfPetName': pet.name || '--',
+        'pdfPetType': TIPOS_MASCOTA[pet.type] || pet.type || '--',
+        'pdfPetBreed': pet.breed || 'No especificada',
+        'pdfPetAge': pet.age || 'No especificada',
+        'pdfPetWeight': pet.weight ? pet.weight + ' kg' : 'No especificado',
+        'pdfClientName': client.name || '--',
+        'pdfClientCI': client.cedula || '--',
+        'pdfClientPhone': client.phone || '--',
+        'pdfClientAddress': client.address || 'No especificada',
+        'pdfConsultType': TIPOS_CONSULTA[historyData.type] || historyData.type || '--',
+        'pdfConsultDate': historyData.date || '--',
+        'pdfDiagnosis': historyData.diagnosis || 'No especificado',
+        'pdfTreatment': historyData.treatment || 'No especificado',
+        'pdfMeds': historyData.meds || 'Ninguno'
+    };
     
-    // Datos del paciente
-    document.getElementById('pdfPetName').textContent = pet.name || '--';
-    document.getElementById('pdfPetType').textContent = TIPOS_MASCOTA[pet.type] || pet.type || '--';
-    document.getElementById('pdfPetBreed').textContent = pet.breed || 'No especificada';
-    document.getElementById('pdfPetAge').textContent = pet.age || 'No especificada';
-    document.getElementById('pdfPetWeight').textContent = pet.weight ? pet.weight + ' kg' : 'No especificado';
+    for (const [id, value] of Object.entries(elements)) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = value;
+        } else {
+            console.warn('⚠️ Elemento no encontrado:', id);
+        }
+    }
     
-    // Datos del propietario
-    document.getElementById('pdfClientName').textContent = client.name || '--';
-    document.getElementById('pdfClientCI').textContent = client.cedula || '--';
-    document.getElementById('pdfClientPhone').textContent = client.phone || '--';
-    document.getElementById('pdfClientAddress').textContent = client.address || 'No especificada';
-    
-    // Datos de la consulta
-    document.getElementById('pdfConsultType').textContent = TIPOS_CONSULTA[historyData.type] || historyData.type || '--';
-    document.getElementById('pdfConsultDate').textContent = historyData.date || '--';
-    document.getElementById('pdfDiagnosis').textContent = historyData.diagnosis || 'No especificado';
-    document.getElementById('pdfTreatment').textContent = historyData.treatment || 'No especificado';
-    document.getElementById('pdfMeds').textContent = historyData.meds || 'Ninguno';
+    console.log('✅ Template llenado');
 }
 
 /**
- * Genera el PDF usando html2pdf y lo convierte a Blob
+ * Genera el PDF usando html2pdf.js
+ * Similar a como el sistema PHP usa html2pdf de spipu
  */
 async function generatePdfBlob(historyId, historyData, pet, client) {
-    // Llenar template
+    console.log('📄 Generando PDF...');
+    
+    // Verificar que html2pdf está disponible
+    if (typeof html2pdf === 'undefined') {
+        console.error('❌ html2pdf no está cargado');
+        throw new Error('Libreria html2pdf no disponible');
+    }
+    
+    // Llenar template con datos
     fillPdfTemplate(historyId, historyData, pet, client);
     
     // Obtener elemento template
     const element = document.getElementById('pdfTemplate');
+    if (!element) {
+        console.error('❌ Template PDF no encontrado');
+        throw new Error('Template PDF no encontrado en el DOM');
+    }
     
-    // Configuración del PDF
+    // Mover temporalmente el template a la vista para renderizar
+    element.style.position = 'fixed';
+    element.style.left = '0';
+    element.style.top = '0';
+    element.style.zIndex = '-1';
+    
+    // Configuración del PDF (similar a html2pdf de PHP)
     const opt = {
-        margin: 10,
+        margin: [10, 10, 10, 10],
         filename: 'HC_' + historyId + '_' + pet.name + '.pdf',
-        image: { type: 'jpeg', quality: 0.98 },
+        image: { type: 'jpeg', quality: 0.95 },
         html2canvas: { 
             scale: 2,
             useCORS: true,
-            logging: false
+            logging: false,
+            letterRendering: true
         },
         jsPDF: { 
             unit: 'mm', 
@@ -1477,61 +1506,112 @@ async function generatePdfBlob(historyId, historyData, pet, client) {
         }
     };
     
-    // Generar PDF como Blob
-    const pdfBlob = await html2pdf().from(element).set(opt).outputPdf('blob');
-    
-    return pdfBlob;
+    try {
+        // Generar PDF como Blob
+        const pdfBlob = await html2pdf().from(element).set(opt).outputPdf('blob');
+        
+        // Restaurar posición del template
+        element.style.position = 'absolute';
+        element.style.left = '-9999px';
+        element.style.top = '-9999px';
+        element.style.zIndex = '';
+        
+        console.log('✅ PDF generado, tamaño:', Math.round(pdfBlob.size / 1024), 'KB');
+        return pdfBlob;
+        
+    } catch (error) {
+        // Restaurar posición del template en caso de error
+        element.style.position = 'absolute';
+        element.style.left = '-9999px';
+        element.style.top = '-9999px';
+        element.style.zIndex = '';
+        
+        console.error('❌ Error generando PDF:', error);
+        throw error;
+    }
 }
 
 /**
- * Sube el PDF a Google Drive y retorna el URL
+ * Sube el PDF a Google Drive
+ * Similar a como el sistema PHP usa Google_Service_Drive con setParents
  */
 async function uploadPdfToDrive(pdfBlob, historyId, petName) {
-    const fileName = 'HC_' + historyId + '_' + petName + '_' + getTodayDate() + '.pdf';
+    console.log('☁️ Subiendo PDF a Drive...');
     
+    // Verificar token
+    const token = gapi.client.getToken();
+    if (!token || !token.access_token) {
+        console.error('❌ No hay token de acceso');
+        throw new Error('No hay sesion de Google activa');
+    }
+    
+    // Nombre del archivo (similar al sistema PHP: 'reporte_'.date('m-d-Y h:i:s A').'.pdf')
+    const fileName = 'HC_' + historyId + '_' + petName + '_' + getTodayDate() + '.pdf';
+    console.log('📁 Nombre archivo:', fileName);
+    
+    // Metadata del archivo
     const metadata = {
         name: fileName,
         mimeType: 'application/pdf'
     };
     
-    // Agregar a carpeta si está configurada
+    // Agregar carpeta padre (similar a setParents en PHP)
     if (CONFIG.DRIVE_FOLDER_ID && CONFIG.DRIVE_FOLDER_ID.length > 10) {
         metadata.parents = [CONFIG.DRIVE_FOLDER_ID];
+        console.log('📂 Carpeta destino:', CONFIG.DRIVE_FOLDER_ID);
+    } else {
+        console.log('📂 Sin carpeta especifica, se guardara en raiz');
     }
     
+    // Crear FormData para multipart upload
     const form = new FormData();
     form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', pdfBlob);
+    form.append('file', pdfBlob, fileName);
     
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+    // Subir archivo a Drive
+    console.log('📤 Enviando a Drive API...');
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token },
+        headers: { 
+            'Authorization': 'Bearer ' + token.access_token 
+        },
         body: form
     });
     
+    // Verificar respuesta
     if (!response.ok) {
-        const errData = await response.json();
-        console.error('Error subiendo PDF:', errData);
-        throw new Error('Error subiendo PDF a Drive');
+        const errorText = await response.text();
+        console.error('❌ Error de Drive API:', response.status, errorText);
+        throw new Error('Error subiendo a Drive: ' + response.status);
     }
     
     const data = await response.json();
+    console.log('✅ Archivo subido:', data);
     
-    // Hacer público el archivo
+    // Intentar hacer público el archivo
     try {
+        console.log('🔓 Configurando permisos publicos...');
         await fetch('https://www.googleapis.com/drive/v3/files/' + data.id + '/permissions', {
             method: 'POST',
             headers: {
-                'Authorization': 'Bearer ' + gapi.client.getToken().access_token,
+                'Authorization': 'Bearer ' + token.access_token,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ role: 'reader', type: 'anyone' })
+            body: JSON.stringify({ 
+                role: 'reader', 
+                type: 'anyone' 
+            })
         });
+        console.log('✅ Archivo configurado como publico');
     } catch (permError) {
-        console.warn('No se pudo hacer publico el PDF:', permError);
+        console.warn('⚠️ No se pudo hacer publico:', permError);
     }
     
-    return data.webViewLink || 'https://drive.google.com/file/d/' + data.id + '/view';
+    // Retornar URL del archivo
+    const fileUrl = data.webViewLink || ('https://drive.google.com/file/d/' + data.id + '/view');
+    console.log('🔗 URL del archivo:', fileUrl);
+    
+    return fileUrl;
 }
 
 /**
@@ -1540,6 +1620,8 @@ async function uploadPdfToDrive(pdfBlob, historyId, petName) {
 async function updateSheetCell(sheetName, row, col, value) {
     const colLetter = String.fromCharCode(64 + col); // 1=A, 2=B, etc.
     const range = sheetName + '!' + colLetter + row;
+    
+    console.log('📝 Actualizando celda:', range, '=', value);
     
     await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
@@ -1564,53 +1646,73 @@ async function getLastRowNumber(sheetName) {
 
 // ╔════════════════════════════════════════════════════════════════════════════╗
 // ║                    GUARDAR HISTORIAL CLÍNICO COMPLETO                       ║
+// ║                    Flujo similar al sistema PHP de reportes                 ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
 
 /**
  * FUNCIÓN PRINCIPAL: Guardar historial con PDF
- * Flujo: Guardar datos → Generar PDF → Subir a Drive → Actualizar link en Sheets
+ * 
+ * Flujo (basado en el sistema PHP):
+ * 1. Validar datos del formulario
+ * 2. Guardar en Google Sheets (como crear_reporte.php)
+ * 3. Generar PDF (como html2pdf en PHP)
+ * 4. Subir PDF a Drive (como subida.php)
+ * 5. Actualizar link en Sheets
  */
 async function saveHistory(e) {
     e.preventDefault();
     
-    // Validaciones
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('🏥 INICIANDO GUARDADO DE HISTORIAL CLÍNICO');
+    console.log('═══════════════════════════════════════════════════════════');
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // VALIDACIONES
+    // ═══════════════════════════════════════════════════════════════════════
     if (!selectedHistoryClient || !selectedHistoryPet) {
         showToast('Seleccione cliente y mascota', 'warning');
+        console.error('❌ Falta seleccionar cliente o mascota');
         return;
     }
     
     const diagnosis = document.getElementById('historyDiagnosis').value.trim();
     if (!diagnosis) {
         showToast('Ingrese diagnostico', 'warning');
+        console.error('❌ Falta diagnostico');
         return;
     }
     
-    // ═══════════════════════════════════════════════════════════════════════
-    // USAR UN ÚNICO ID PARA TODO EL PROCESO
-    // ═══════════════════════════════════════════════════════════════════════
+    // ID ÚNICO para todo el proceso (como en PHP: date('m-d-Y h:i:s A'))
     const HISTORY_ID = Date.now();
+    console.log('🔑 ID del historial:', HISTORY_ID);
+    
+    // Datos del historial
+    const historyData = {
+        id: HISTORY_ID,
+        petId: selectedHistoryPet.id,
+        clientId: selectedHistoryClient.id,
+        date: getTodayDate(),
+        type: document.getElementById('historyType').value,
+        diagnosis: diagnosis,
+        treatment: document.getElementById('historyTreatment').value.trim(),
+        meds: document.getElementById('historyMeds').value.trim()
+    };
+    
+    console.log('📋 Datos del historial:', historyData);
+    console.log('🐕 Mascota:', selectedHistoryPet.name);
+    console.log('👤 Cliente:', selectedHistoryClient.name);
+    
+    let pdfUrl = '';
+    let rowNumber = 0;
     
     try {
         // ═══════════════════════════════════════════════════════════════════
-        // PASO 1: PREPARAR DATOS DEL HISTORIAL
+        // PASO 1: GUARDAR EN GOOGLE SHEETS
+        // Similar a crear_reporte.php que inserta en MySQL
         // ═══════════════════════════════════════════════════════════════════
-        const historyData = {
-            id: HISTORY_ID,
-            petId: selectedHistoryPet.id,
-            clientId: selectedHistoryClient.id,
-            date: getTodayDate(),
-            type: document.getElementById('historyType').value,
-            diagnosis: diagnosis,
-            treatment: document.getElementById('historyTreatment').value.trim(),
-            meds: document.getElementById('historyMeds').value.trim()
-        };
-        
-        console.log('📋 Guardando historial con ID:', HISTORY_ID);
-        
-        // ═══════════════════════════════════════════════════════════════════
-        // PASO 2: GUARDAR EN GOOGLE SHEETS (SIN PDF AÚN)
-        // ═══════════════════════════════════════════════════════════════════
-        showToast('Guardando en Google Sheets...', 'warning');
+        showToast('Guardando datos...', 'warning');
+        console.log('📊 PASO 1: Guardando en Google Sheets...');
+        console.log('   Hoja:', SHEETS.HISTORIAL);
         
         await appendToSheet(SHEETS.HISTORIAL, [
             HISTORY_ID,                       // A: ID
@@ -1622,73 +1724,74 @@ async function saveHistory(e) {
             historyData.treatment,            // G: Tratamiento
             historyData.meds,                 // H: Medicamentos
             emailUsuario || '',               // I: Veterinario
-            '',                               // J: LinkPDF (vacío, se llena después)
+            '',                               // J: LinkPDF (se actualiza después)
             new Date().toISOString()          // K: FechaCreacion
         ]);
         
-        console.log('✅ Datos guardados en Sheets');
-        
         // Obtener número de fila donde se guardó
-        const rowNumber = await getLastRowNumber(SHEETS.HISTORIAL);
-        console.log('📍 Fila guardada:', rowNumber);
+        rowNumber = await getLastRowNumber(SHEETS.HISTORIAL);
+        console.log('✅ Datos guardados en fila:', rowNumber);
         
         // ═══════════════════════════════════════════════════════════════════
-        // PASO 3: GENERAR PDF
+        // PASO 2: GENERAR PDF
+        // Similar a html2pdf en el sistema PHP
         // ═══════════════════════════════════════════════════════════════════
-        let pdfUrl = '';
+        showToast('Generando PDF...', 'warning');
+        console.log('📄 PASO 2: Generando PDF...');
         
         try {
-            showToast('Generando PDF...', 'warning');
-            
-            // Generar PDF como Blob
             const pdfBlob = await generatePdfBlob(HISTORY_ID, historyData, selectedHistoryPet, selectedHistoryClient);
-            console.log('✅ PDF generado');
+            console.log('✅ PDF generado correctamente');
             
             // ═══════════════════════════════════════════════════════════════
-            // PASO 4: SUBIR PDF A GOOGLE DRIVE
+            // PASO 3: SUBIR PDF A DRIVE
+            // Similar a subida.php que usa Google_Service_Drive
             // ═══════════════════════════════════════════════════════════════
-            showToast('Subiendo PDF a Drive...', 'warning');
+            showToast('Subiendo a Drive...', 'warning');
+            console.log('☁️ PASO 3: Subiendo PDF a Google Drive...');
             
             pdfUrl = await uploadPdfToDrive(pdfBlob, HISTORY_ID, selectedHistoryPet.name);
             console.log('✅ PDF subido a Drive:', pdfUrl);
             
             // ═══════════════════════════════════════════════════════════════
-            // PASO 5: ACTUALIZAR LINK DEL PDF EN SHEETS (Columna J)
+            // PASO 4: ACTUALIZAR LINK EN SHEETS (columna J)
             // ═══════════════════════════════════════════════════════════════
-            showToast('Actualizando link en Sheets...', 'warning');
+            showToast('Actualizando registro...', 'warning');
+            console.log('🔗 PASO 4: Actualizando link del PDF en Sheets...');
             
             await updateSheetCell(SHEETS.HISTORIAL, rowNumber, 10, pdfUrl); // Columna J = 10
-            console.log('✅ Link PDF actualizado en Sheets');
+            console.log('✅ Link actualizado en Sheets');
             
         } catch (pdfError) {
-            console.error('⚠️ Error con PDF:', pdfError);
+            console.error('⚠️ Error con PDF (datos ya guardados):', pdfError);
             showToast('PDF no generado, pero datos guardados', 'warning');
         }
         
         // ═══════════════════════════════════════════════════════════════════
-        // PASO 6: SUBIR ARCHIVOS ADJUNTOS (SI HAY)
+        // PASO 5: SUBIR ARCHIVOS ADJUNTOS (si hay)
         // ═══════════════════════════════════════════════════════════════════
         if (selectedFiles.length > 0) {
+            console.log('📎 PASO 5: Subiendo', selectedFiles.length, 'archivos adjuntos...');
+            
             for (let i = 0; i < selectedFiles.length; i++) {
                 try {
-                    showToast('Subiendo archivo ' + (i + 1) + '/' + selectedFiles.length + '...', 'warning');
+                    showToast('Subiendo archivo ' + (i + 1) + '/' + selectedFiles.length, 'warning');
                     
                     const uploaded = await uploadFileToDrive(selectedFiles[i]);
+                    console.log('✅ Archivo subido:', uploaded.name);
                     
                     // Guardar referencia en hoja Archivos_Adjuntos
                     await appendToSheet(SHEETS.ARCHIVOS, [
-                        HISTORY_ID + '_' + i,     // A: ID único
-                        HISTORY_ID,               // B: HistorialID (mismo ID!)
-                        historyData.petId,        // C: MascotaID
-                        historyData.clientId,     // D: ClienteID
-                        uploaded.name,            // E: NombreArchivo
-                        uploaded.type,            // F: TipoArchivo
-                        Math.round(uploaded.size / 1024), // G: TamanoKB
-                        uploaded.url,             // H: URLDrive
-                        new Date().toISOString()  // I: FechaSubida
+                        HISTORY_ID + '_' + i,
+                        HISTORY_ID,
+                        historyData.petId,
+                        historyData.clientId,
+                        uploaded.name,
+                        uploaded.type,
+                        Math.round(uploaded.size / 1024),
+                        uploaded.url,
+                        new Date().toISOString()
                     ]);
-                    
-                    console.log('✅ Archivo adjunto guardado:', uploaded.name);
                     
                 } catch (fileError) {
                     console.error('⚠️ Error subiendo archivo:', fileError);
@@ -1697,30 +1800,41 @@ async function saveHistory(e) {
         }
         
         // ═══════════════════════════════════════════════════════════════════
-        // PASO 7: ACTUALIZAR UI Y CERRAR MODAL
+        // PASO 6: ACTUALIZAR UI Y MOSTRAR RESULTADO
         // ═══════════════════════════════════════════════════════════════════
+        console.log('🎉 PASO 6: Finalizando...');
         
         // Agregar a lista local
         history.push({
             ...historyData,
             pdfUrl: pdfUrl,
-            attachments: []
+            attachments: [],
+            _rowIndex: rowNumber
         });
         
-        // Cerrar y limpiar
+        // Cerrar modal y limpiar
         closeModal('newHistory');
         resetHistoryForm();
         renderAll();
         
-        // Mensaje final
+        // Mensaje de éxito
         if (pdfUrl) {
             showToast('Historial guardado con PDF!', 'success');
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('✅ PROCESO COMPLETADO EXITOSAMENTE');
+            console.log('   PDF:', pdfUrl);
+            console.log('═══════════════════════════════════════════════════════════');
         } else {
-            showToast('Historial guardado correctamente', 'success');
+            showToast('Historial guardado (sin PDF)', 'success');
+            console.log('═══════════════════════════════════════════════════════════');
+            console.log('✅ DATOS GUARDADOS (PDF no generado)');
+            console.log('═══════════════════════════════════════════════════════════');
         }
         
     } catch (error) {
-        console.error('❌ Error guardando historial:', error);
+        console.error('═══════════════════════════════════════════════════════════');
+        console.error('❌ ERROR EN EL PROCESO:', error);
+        console.error('═══════════════════════════════════════════════════════════');
         showToast('Error: ' + (error.message || 'al guardar'), 'error');
     }
 }
