@@ -18,15 +18,15 @@ const CONFIG = {
     // Obtén el ID de la URL de tu Google Sheet:
     // https://docs.google.com/spreadsheets/d/[ESTE_ES_EL_ID]/edit
     // ═══════════════════════════════════════════════════════════════════
-    GOOGLE_SHEET_ID: 'TU_GOOGLE_SHEET_ID_AQUI',
+    GOOGLE_SHEET_ID: '11oCI6wOd_w2-YvVyChTeNvVlM-ULw0Ha2Yey4c08AhY',
     
     // ═══════════════════════════════════════════════════════════════════
     // CREDENCIALES DE GOOGLE CLOUD
     // ═══════════════════════════════════════════════════════════════════
     // Ve a: console.cloud.google.com > APIs y servicios > Credenciales
     // ═══════════════════════════════════════════════════════════════════
-    CLIENT_ID: 'TU_CLIENT_ID.apps.googleusercontent.com',
-    API_KEY: 'TU_API_KEY',
+    CLIENT_ID: '814005655098-8csk41qts3okv4b2fjnq7ls4qc2kq0vc.apps.googleusercontent.com',
+    API_KEY: 'AIzaSyAOhGTjJXHhuUhqf1g2DPCla59xNzftb-Q',
     
     // ═══════════════════════════════════════════════════════════════════
     // GOOGLE DRIVE - Carpeta para archivos (opcional)
