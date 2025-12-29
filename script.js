@@ -1,17 +1,16 @@
 /* ══════════════════════════════════════════════════════════════════════
    VetCare - Sistema de Gestión Veterinaria
-   Conectado a Google Sheets - SIN DATOS DEMO
+   Conectado a Google Sheets
    ══════════════════════════════════════════════════════════════════════ */
 
 // ══════════════════════════════════════════════════════════════════════
-// VARIABLES GLOBALES - DATOS DESDE GOOGLE SHEETS
+// VARIABLES GLOBALES
 // ══════════════════════════════════════════════════════════════════════
 let clients = [];
 let pets = [];
 let appointments = [];
 let history = [];
 
-// Estado de formularios
 let selectedOwner = null;
 let isNewOwner = false;
 let selectedFiles = [];
@@ -21,7 +20,6 @@ let selectedHistoryClient = null;
 let selectedHistoryPet = null;
 let selectedPetType = null;
 
-// Google API
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
@@ -36,50 +34,83 @@ const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googlea
 // INICIALIZACIÓN GOOGLE API
 // ══════════════════════════════════════════════════════════════════════
 function gapiLoaded() {
+    console.log('GAPI cargado');
     gapi.load('client', initializeGapiClient);
 }
 
 async function initializeGapiClient() {
     try {
+        console.log('Inicializando GAPI client...');
+        console.log('API_KEY:', CONFIG.API_KEY ? 'Configurada' : 'NO CONFIGURADA');
+        
         await gapi.client.init({
             apiKey: CONFIG.API_KEY,
             discoveryDocs: [DISCOVERY_DOC],
         });
+        
+        console.log('GAPI inicializado correctamente');
         gapiInited = true;
         maybeEnableButtons();
+        
     } catch (error) {
         console.error('Error inicializando GAPI:', error);
-        showLoginError('Error al conectar con Google API');
+        
+        let errorMsg = 'Error al conectar con Google API';
+        if (error.error) {
+            errorMsg += ': ' + (error.error.message || error.error);
+        }
+        
+        showLoginError(errorMsg);
     }
 }
 
 function gisLoaded() {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CONFIG.CLIENT_ID,
-        scope: SCOPES,
-        callback: '',
-    });
-    gisInited = true;
-    maybeEnableButtons();
+    console.log('GIS cargado');
+    console.log('CLIENT_ID:', CONFIG.CLIENT_ID ? 'Configurado' : 'NO CONFIGURADO');
+    
+    try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: CONFIG.CLIENT_ID,
+            scope: SCOPES,
+            callback: '',
+        });
+        
+        console.log('Token client creado');
+        gisInited = true;
+        maybeEnableButtons();
+        
+    } catch (error) {
+        console.error('Error inicializando GIS:', error);
+        showLoginError('Error al inicializar autenticación Google');
+    }
 }
 
 function maybeEnableButtons() {
+    console.log('Estado - GAPI:', gapiInited, 'GIS:', gisInited);
+    
     if (gapiInited && gisInited) {
-        document.getElementById('btnLogin').disabled = false;
+        const btn = document.getElementById('btnLogin');
+        if (btn) btn.disabled = false;
+        
+        // Ocultar error si existe
+        const errorDiv = document.getElementById('loginError');
+        if (errorDiv) errorDiv.style.display = 'none';
         
         // Verificar token guardado
         const savedToken = localStorage.getItem('vetcare_google_token');
         if (savedToken) {
             try {
                 const tokenData = JSON.parse(savedToken);
-                // Verificar si el token no ha expirado
                 if (tokenData.expires_at && tokenData.expires_at > Date.now()) {
+                    console.log('Token válido encontrado, iniciando sesión automática...');
                     gapi.client.setToken(tokenData);
                     onSignInSuccess();
                 } else {
+                    console.log('Token expirado, eliminando...');
                     localStorage.removeItem('vetcare_google_token');
                 }
             } catch (e) {
+                console.log('Error parseando token guardado');
                 localStorage.removeItem('vetcare_google_token');
             }
         }
@@ -90,14 +121,18 @@ function maybeEnableButtons() {
 // AUTENTICACIÓN
 // ══════════════════════════════════════════════════════════════════════
 function handleAuthClick() {
+    console.log('Iniciando autenticación...');
+    
     tokenClient.callback = async (resp) => {
         if (resp.error !== undefined) {
             console.error('Error de autenticación:', resp);
-            showLoginError('Error al iniciar sesión: ' + resp.error);
+            showLoginError('Error al iniciar sesión: ' + (resp.error_description || resp.error));
             return;
         }
         
-        // Guardar token con tiempo de expiración
+        console.log('Autenticación exitosa');
+        
+        // Guardar token
         const token = gapi.client.getToken();
         token.expires_at = Date.now() + (token.expires_in * 1000);
         localStorage.setItem('vetcare_google_token', JSON.stringify(token));
@@ -120,11 +155,9 @@ function handleSignOut() {
     }
     localStorage.removeItem('vetcare_google_token');
     
-    // Mostrar pantalla de login
     document.getElementById('mainApp').style.display = 'none';
     document.getElementById('loginScreen').style.display = 'flex';
     
-    // Limpiar datos
     clients = [];
     pets = [];
     appointments = [];
@@ -132,82 +165,96 @@ function handleSignOut() {
 }
 
 async function onSignInSuccess() {
-    // Ocultar login, mostrar carga
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('loadingScreen').style.display = 'flex';
     
     try {
-        // Obtener info del usuario
+        // Info del usuario
         const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { 'Authorization': `Bearer ${gapi.client.getToken().access_token}` }
         }).then(r => r.json());
         
-        // Mostrar datos del usuario
         document.getElementById('userPhoto').src = userInfo.picture || '';
         document.getElementById('userName').textContent = userInfo.name || userInfo.email;
         
-        // Cargar datos desde Google Sheets
+        // Cargar datos
         await loadAllDataFromSheets();
         
-        // Mostrar aplicación
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         
-        // Inicializar UI
         initNavigation();
         createFloatingPaws();
         renderAll();
         
-        showToast('✅ Sesión iniciada correctamente');
+        showToast('✅ Sesión iniciada');
         
     } catch (error) {
         console.error('Error cargando datos:', error);
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('loginScreen').style.display = 'flex';
-        showLoginError('Error al cargar datos: ' + error.message);
+        showLoginError('Error al cargar datos: ' + (error.message || error));
     }
 }
 
 function showLoginError(message) {
     const errorDiv = document.getElementById('loginError');
-    errorDiv.textContent = message;
-    errorDiv.style.display = 'block';
+    if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+    }
+    console.error('Login Error:', message);
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// FUNCIONES DE GOOGLE SHEETS - LECTURA
+// GOOGLE SHEETS - LECTURA
 // ══════════════════════════════════════════════════════════════════════
 async function readSheet(sheetName) {
     try {
+        console.log('Leyendo hoja:', sheetName);
+        
         const response = await gapi.client.sheets.spreadsheets.values.get({
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
             range: `${sheetName}!A:Z`,
         });
         
         const values = response.result.values;
-        if (!values || values.length < 2) return [];
+        if (!values || values.length < 2) {
+            console.log(`Hoja ${sheetName} vacía o solo encabezados`);
+            return [];
+        }
         
         const headers = values[0].map(h => h.toLowerCase().trim());
         const data = values.slice(1).map((row, index) => {
-            const obj = { _rowIndex: index + 2 }; // Guardar índice de fila para updates
+            const obj = { _rowIndex: index + 2 };
             headers.forEach((header, i) => {
                 obj[header] = row[i] || '';
             });
             return obj;
         });
         
+        console.log(`Hoja ${sheetName}: ${data.length} registros`);
         return data;
+        
     } catch (error) {
         console.error(`Error leyendo ${sheetName}:`, error);
+        // Si la hoja no existe, devolver array vacío en lugar de fallar
+        if (error.result?.error?.status === 'NOT_FOUND' || 
+            error.result?.error?.message?.includes('Unable to parse range')) {
+            console.log(`Hoja ${sheetName} no encontrada, retornando vacío`);
+            return [];
+        }
         throw error;
     }
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// FUNCIONES DE GOOGLE SHEETS - ESCRITURA
+// GOOGLE SHEETS - ESCRITURA
 // ══════════════════════════════════════════════════════════════════════
 async function appendToSheet(sheetName, values) {
     try {
+        console.log('Escribiendo en:', sheetName);
+        
         await gapi.client.sheets.spreadsheets.values.append({
             spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
             range: `${sheetName}!A:Z`,
@@ -215,6 +262,9 @@ async function appendToSheet(sheetName, values) {
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [values] }
         });
+        
+        console.log('Escrito exitosamente');
+        
     } catch (error) {
         console.error(`Error escribiendo en ${sheetName}:`, error);
         throw error;
@@ -266,10 +316,12 @@ async function deleteSheetRow(sheetName, rowIndex) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// CARGAR TODOS LOS DATOS DESDE SHEETS
+// CARGAR DATOS
 // ══════════════════════════════════════════════════════════════════════
 async function loadAllDataFromSheets() {
-    // Cargar clientes
+    console.log('Cargando datos desde Google Sheets...');
+    
+    // Clientes
     const clientsData = await readSheet(CONFIG.SHEETS.CLIENTES);
     clients = clientsData.map(c => ({
         id: parseInt(c.id) || Date.now(),
@@ -282,7 +334,7 @@ async function loadAllDataFromSheets() {
         _rowIndex: c._rowIndex
     }));
     
-    // Cargar mascotas
+    // Mascotas
     const petsData = await readSheet(CONFIG.SHEETS.MASCOTAS);
     pets = petsData.map(p => ({
         id: parseInt(p.id) || Date.now(),
@@ -297,7 +349,7 @@ async function loadAllDataFromSheets() {
         _rowIndex: p._rowIndex
     }));
     
-    // Cargar citas
+    // Citas
     const appointmentsData = await readSheet(CONFIG.SHEETS.CITAS);
     appointments = appointmentsData.map(a => ({
         id: parseInt(a.id) || Date.now(),
@@ -311,7 +363,7 @@ async function loadAllDataFromSheets() {
         _rowIndex: a._rowIndex
     }));
     
-    // Cargar historial
+    // Historial
     const historyData = await readSheet(CONFIG.SHEETS.HISTORIAL);
     history = historyData.map(h => ({
         id: parseInt(h.id) || Date.now(),
@@ -326,7 +378,7 @@ async function loadAllDataFromSheets() {
         _rowIndex: h._rowIndex
     }));
     
-    // Cargar archivos adjuntos
+    // Archivos
     try {
         const attachmentsData = await readSheet(CONFIG.SHEETS.ARCHIVOS);
         attachmentsData.forEach(a => {
@@ -341,12 +393,19 @@ async function loadAllDataFromSheets() {
             }
         });
     } catch (e) {
-        console.log('No se encontró hoja de archivos');
+        console.log('Hoja Archivos no disponible');
     }
+    
+    console.log('Datos cargados:', {
+        clientes: clients.length,
+        mascotas: pets.length,
+        citas: appointments.length,
+        historial: history.length
+    });
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// SUBIR ARCHIVO A GOOGLE DRIVE
+// GOOGLE DRIVE - SUBIR ARCHIVOS
 // ══════════════════════════════════════════════════════════════════════
 async function uploadFileToDrive(file) {
     const metadata = {
@@ -472,7 +531,7 @@ function updateStats() {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// RENDERIZADO DE CLIENTES
+// RENDERIZADO
 // ══════════════════════════════════════════════════════════════════════
 function renderRecentClients() {
     const table = document.getElementById('recentClientsTable');
@@ -507,7 +566,7 @@ function renderAllClients(filtered = null) {
     const data = filtered || clients;
     
     if (data.length === 0) {
-        table.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">👥</div><p>No hay clientes registrados</p></div></td></tr>';
+        table.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">👥</div><p>No hay clientes</p></div></td></tr>';
         return;
     }
     
@@ -529,9 +588,6 @@ function renderAllClients(filtered = null) {
     }).join('');
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// RENDERIZADO DE MASCOTAS
-// ══════════════════════════════════════════════════════════════════════
 function renderAllPets(filtered = null) {
     const table = document.getElementById('allPetsTable');
     if (!table) return;
@@ -539,7 +595,7 @@ function renderAllPets(filtered = null) {
     const data = filtered || pets;
     
     if (data.length === 0) {
-        table.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🐾</div><p>No hay mascotas registradas</p></div></td></tr>';
+        table.innerHTML = '<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🐾</div><p>No hay mascotas</p></div></td></tr>';
         return;
     }
     
@@ -561,9 +617,6 @@ function renderAllPets(filtered = null) {
     }).join('');
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// RENDERIZADO DE CITAS
-// ══════════════════════════════════════════════════════════════════════
 function renderTodayAppointments() {
     const container = document.getElementById('todayAppointmentsList');
     if (!container) return;
@@ -632,7 +685,7 @@ function renderCompletedAppointments() {
     const completed = appointments.filter(a => a.date === today && a.completed);
     
     if (completed.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>Sin citas completadas</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>Sin completadas</p></div>';
         return;
     }
     
@@ -648,9 +701,6 @@ function renderCompletedAppointments() {
     }).join('');
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// RENDERIZADO DE HISTORIAL
-// ══════════════════════════════════════════════════════════════════════
 function renderHistory(filtered = null) {
     const container = document.getElementById('historyList');
     if (!container) return;
@@ -692,7 +742,7 @@ function renderHistory(filtered = null) {
 function sendWhatsApp(phone, message) {
     const cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
-        showToast('⚠️ Teléfono no disponible');
+        showToast('⚠️ Sin teléfono');
         return;
     }
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
@@ -706,15 +756,13 @@ function sendAppointmentReminder(appointmentId) {
     const client = clients.find(c => c.id === appt.clientId);
     if (!client) return;
 
-    const message = `🐾 *RECORDATORIO DE CITA - VetCare*
+    const message = `🐾 *RECORDATORIO - VetCare*
 
 Hola ${client.name}! 👋
 
-Le recordamos su cita:
-
 📅 *Fecha:* ${formatDateLong(appt.date)}
 🕐 *Hora:* ${appt.time}
-🐕 *Mascota:* ${pet?.name || 'Su mascota'}
+🐕 *Mascota:* ${pet?.name || ''}
 💉 *Tipo:* ${getTypeName(appt.type)}
 
 ¡Lo esperamos! 🏥`;
@@ -742,15 +790,10 @@ function closeModal(type) {
     if (modal) modal.classList.remove('active');
 }
 
-// Cerrar modal al hacer clic fuera
 document.addEventListener('click', (e) => {
     if (e.target.classList.contains('modal-overlay')) {
         e.target.classList.remove('active');
     }
-});
-
-// Cerrar autocomplete al hacer clic fuera
-document.addEventListener('click', (e) => {
     if (!e.target.closest('.autocomplete-wrapper')) {
         document.querySelectorAll('.autocomplete-list').forEach(el => el.classList.remove('show'));
     }
@@ -769,22 +812,18 @@ async function saveClient(e) {
     const address = document.getElementById('clientAddress').value.trim();
     
     if (!cedula || !name || !phone) {
-        showToast('⚠️ Complete los campos obligatorios');
+        showToast('⚠️ Complete campos obligatorios');
         return;
     }
     
     if (clients.find(c => c.cedula === cedula)) {
-        showToast('⚠️ Ya existe un cliente con esa cédula');
+        showToast('⚠️ CI ya existe');
         return;
     }
     
     const newClient = {
         id: Date.now(),
-        cedula,
-        name,
-        phone,
-        email,
-        address,
+        cedula, name, phone, email, address,
         color: generateColor()
     };
     
@@ -792,14 +831,7 @@ async function saveClient(e) {
         showToast('💾 Guardando...');
         
         await appendToSheet(CONFIG.SHEETS.CLIENTES, [
-            newClient.id,
-            cedula,
-            name,
-            phone,
-            email,
-            address,
-            newClient.color,
-            new Date().toISOString()
+            newClient.id, cedula, name, phone, email, address, newClient.color, new Date().toISOString()
         ]);
         
         clients.push(newClient);
@@ -810,12 +842,12 @@ async function saveClient(e) {
         
     } catch (error) {
         console.error(error);
-        showToast('❌ Error al guardar');
+        showToast('❌ Error: ' + (error.message || 'al guardar'));
     }
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// FORMULARIO DE MASCOTA
+// FORMULARIO MASCOTA
 // ══════════════════════════════════════════════════════════════════════
 function resetPetForm() {
     selectedOwner = null;
@@ -849,10 +881,7 @@ function searchOwner(query) {
         return;
     }
     
-    const matches = clients.filter(c => 
-        c.cedula.includes(query) || 
-        c.name.toLowerCase().includes(query.toLowerCase())
-    );
+    const matches = clients.filter(c => c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()));
     
     if (matches.length > 0) {
         autocomplete.innerHTML = matches.map(c => `
@@ -868,7 +897,6 @@ function searchOwner(query) {
         autocomplete.classList.remove('show');
         infoCard.classList.remove('show');
         newForm.style.display = 'block';
-        
         if (/^\d+$/.test(query)) {
             document.getElementById('newOwnerCedula').value = query;
         } else {
@@ -903,18 +931,13 @@ async function savePet(e) {
     e.preventDefault();
     
     if (!selectedPetType) {
-        showToast('⚠️ Seleccione tipo de mascota');
+        showToast('⚠️ Seleccione tipo');
         return;
     }
     
     const name = document.getElementById('petName').value.trim();
-    const breed = document.getElementById('petBreed').value.trim();
-    const age = document.getElementById('petAge').value.trim();
-    const weight = document.getElementById('petWeight').value;
-    const notes = document.getElementById('petNotes').value.trim();
-    
     if (!name) {
-        showToast('⚠️ Ingrese nombre de mascota');
+        showToast('⚠️ Ingrese nombre');
         return;
     }
     
@@ -931,11 +954,10 @@ async function savePet(e) {
         }
         
         if (clients.find(c => c.cedula === newCedula)) {
-            showToast('⚠️ Ya existe cliente con esa cédula');
+            showToast('⚠️ CI ya existe');
             return;
         }
         
-        // Crear cliente primero
         const newClient = {
             id: Date.now(),
             cedula: newCedula,
@@ -954,15 +976,14 @@ async function savePet(e) {
             ownerId = newClient.id;
             ownerCedula = newCedula;
         } catch (error) {
-            showToast('❌ Error al crear cliente');
+            showToast('❌ Error al crear dueño');
             return;
         }
-        
     } else if (selectedOwner) {
         ownerId = selectedOwner.id;
         ownerCedula = selectedOwner.cedula;
     } else {
-        showToast('⚠️ Seleccione o registre un dueño');
+        showToast('⚠️ Seleccione dueño');
         return;
     }
     
@@ -970,19 +991,19 @@ async function savePet(e) {
         id: Date.now() + 1,
         name,
         type: selectedPetType,
-        breed,
-        age,
-        weight: parseFloat(weight) || 0,
+        breed: document.getElementById('petBreed').value.trim(),
+        age: document.getElementById('petAge').value.trim(),
+        weight: parseFloat(document.getElementById('petWeight').value) || 0,
         owner: ownerId,
         ownerCedula,
-        notes
+        notes: document.getElementById('petNotes').value.trim()
     };
     
     try {
-        showToast('💾 Guardando mascota...');
+        showToast('💾 Guardando...');
         
         await appendToSheet(CONFIG.SHEETS.MASCOTAS, [
-            newPet.id, name, selectedPetType, breed, age, newPet.weight, ownerId, ownerCedula, notes, new Date().toISOString()
+            newPet.id, newPet.name, selectedPetType, newPet.breed, newPet.age, newPet.weight, ownerId, ownerCedula, newPet.notes, new Date().toISOString()
         ]);
         
         pets.push(newPet);
@@ -998,7 +1019,7 @@ async function savePet(e) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// FORMULARIO DE CITAS
+// FORMULARIO CITAS
 // ══════════════════════════════════════════════════════════════════════
 function resetAppointmentForm() {
     selectedAppointmentClient = null;
@@ -1020,17 +1041,14 @@ function searchClientForAppointment(query) {
         return;
     }
     
-    const matches = clients.filter(c => 
-        c.cedula.includes(query) || 
-        c.name.toLowerCase().includes(query.toLowerCase())
-    );
+    const matches = clients.filter(c => c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()));
     
     if (matches.length > 0) {
         autocomplete.innerHTML = matches.map(c => {
             const cPets = pets.filter(p => p.owner === c.id);
             return `<div class="autocomplete-item" onclick="selectClientForAppointment(${c.id})">
                 <div class="autocomplete-item-name">${c.name} <span class="autocomplete-badge">CI: ${c.cedula}</span></div>
-                <div class="autocomplete-item-detail">📞 ${c.phone} • 🐾 ${cPets.length} mascota(s)</div>
+                <div class="autocomplete-item-detail">🐾 ${cPets.length} mascota(s)</div>
             </div>`;
         }).join('');
         autocomplete.classList.add('show');
@@ -1062,23 +1080,20 @@ function selectClientForAppointment(clientId) {
             <div class="pet-selection-card" data-pet-id="${p.id}" onclick="selectPetForAppointment(${p.id})">
                 <div class="pet-selection-icon">${getPetIcon(p.type)}</div>
                 <div class="pet-selection-name">${p.name}</div>
-                <div class="pet-selection-breed">${p.breed || getPetTypeName(p.type)}</div>
             </div>
         `).join('');
         document.getElementById('appointmentPetSelection').style.display = 'block';
     } else {
-        showToast('⚠️ Cliente sin mascotas');
+        showToast('⚠️ Sin mascotas');
     }
 }
 
 function selectPetForAppointment(petId) {
     selectedAppointmentPet = pets.find(p => p.id === petId);
     document.getElementById('appointmentPetId').value = petId;
-    
     document.querySelectorAll('#appointmentPetGrid .pet-selection-card').forEach(c => {
         c.classList.toggle('selected', parseInt(c.dataset.petId) === petId);
     });
-    
     document.getElementById('appointmentDetails').style.display = 'block';
     document.getElementById('appointmentDate').value = getTodayDate();
 }
@@ -1097,7 +1112,7 @@ async function saveAppointment(e) {
     const notes = document.getElementById('appointmentNotes').value.trim();
     
     if (!date || !time) {
-        showToast('⚠️ Ingrese fecha y hora');
+        showToast('⚠️ Complete fecha y hora');
         return;
     }
     
@@ -1105,15 +1120,12 @@ async function saveAppointment(e) {
         id: Date.now(),
         petId: selectedAppointmentPet.id,
         clientId: selectedAppointmentClient.id,
-        date,
-        time,
-        type,
-        notes,
+        date, time, type, notes,
         completed: false
     };
     
     try {
-        showToast('💾 Guardando cita...');
+        showToast('💾 Guardando...');
         
         await appendToSheet(CONFIG.SHEETS.CITAS, [
             newAppt.id, newAppt.petId, newAppt.clientId, date, time, type, notes, 'PENDIENTE', 'TRUE', new Date().toISOString()
@@ -1121,18 +1133,14 @@ async function saveAppointment(e) {
         
         appointments.push(newAppt);
         
-        // Enviar WhatsApp
         const message = `🐾 *CITA AGENDADA - VetCare*
 
-Hola ${selectedAppointmentClient.name}! 👋
+Hola ${selectedAppointmentClient.name}!
 
-Su cita ha sido agendada:
-
-📅 *Fecha:* ${formatDateLong(date)}
-🕐 *Hora:* ${time}
-🐕 *Mascota:* ${selectedAppointmentPet.name}
-💉 *Tipo:* ${getTypeName(type)}
-${notes ? `📝 *Notas:* ${notes}` : ''}
+📅 ${formatDateLong(date)}
+🕐 ${time}
+🐕 ${selectedAppointmentPet.name}
+💉 ${getTypeName(type)}
 
 ¡Lo esperamos! 🏥`;
 
@@ -1149,7 +1157,7 @@ ${notes ? `📝 *Notas:* ${notes}` : ''}
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// FORMULARIO DE HISTORIAL
+// FORMULARIO HISTORIAL
 // ══════════════════════════════════════════════════════════════════════
 function resetHistoryForm() {
     selectedHistoryClient = null;
@@ -1172,17 +1180,14 @@ function searchClientForHistory(query) {
         return;
     }
     
-    const matches = clients.filter(c => 
-        c.cedula.includes(query) || 
-        c.name.toLowerCase().includes(query.toLowerCase())
-    );
+    const matches = clients.filter(c => c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()));
     
     if (matches.length > 0) {
         autocomplete.innerHTML = matches.map(c => {
             const cPets = pets.filter(p => p.owner === c.id);
             return `<div class="autocomplete-item" onclick="selectClientForHistory(${c.id})">
                 <div class="autocomplete-item-name">${c.name} <span class="autocomplete-badge">CI: ${c.cedula}</span></div>
-                <div class="autocomplete-item-detail">📞 ${c.phone} • 🐾 ${cPets.length} mascota(s)</div>
+                <div class="autocomplete-item-detail">🐾 ${cPets.length} mascota(s)</div>
             </div>`;
         }).join('');
         autocomplete.classList.add('show');
@@ -1212,48 +1217,38 @@ function selectClientForHistory(clientId) {
             <div class="pet-selection-card" data-pet-id="${p.id}" onclick="selectPetForHistory(${p.id})">
                 <div class="pet-selection-icon">${getPetIcon(p.type)}</div>
                 <div class="pet-selection-name">${p.name}</div>
-                <div class="pet-selection-breed">${p.breed || getPetTypeName(p.type)}</div>
             </div>
         `).join('');
         document.getElementById('historyPetSelection').style.display = 'block';
     } else {
-        showToast('⚠️ Cliente sin mascotas');
+        showToast('⚠️ Sin mascotas');
     }
 }
 
 function selectPetForHistory(petId) {
     selectedHistoryPet = pets.find(p => p.id === petId);
     document.getElementById('historyPetId').value = petId;
-    
     document.querySelectorAll('#historyPetGrid .pet-selection-card').forEach(c => {
         c.classList.toggle('selected', parseInt(c.dataset.petId) === petId);
     });
-    
     document.getElementById('historyDetails').style.display = 'block';
 }
 
 function handleFileSelect(event) {
-    const files = Array.from(event.target.files);
-    files.forEach(file => {
-        if (file.size > 10 * 1024 * 1024) {
-            showToast(`⚠️ ${file.name} muy grande`);
-            return;
+    Array.from(event.target.files).forEach(file => {
+        if (file.size <= 10 * 1024 * 1024) {
+            selectedFiles.push(file);
         }
-        selectedFiles.push(file);
     });
     renderFileList();
 }
 
 function renderFileList() {
-    const container = document.getElementById('fileList');
-    container.innerHTML = selectedFiles.map((file, i) => `
+    document.getElementById('fileList').innerHTML = selectedFiles.map((file, i) => `
         <div class="file-item">
             <div class="file-item-info">
                 <span>${file.type.startsWith('image/') ? '🖼️' : '📄'}</span>
-                <div>
-                    <div class="file-item-name">${file.name}</div>
-                    <div class="file-item-size">${(file.size / 1024).toFixed(1)} KB</div>
-                </div>
+                <div><div class="file-item-name">${file.name}</div><div class="file-item-size">${(file.size / 1024).toFixed(0)} KB</div></div>
             </div>
             <button type="button" class="file-remove-btn" onclick="removeFile(${i})">✕</button>
         </div>
@@ -1273,20 +1268,15 @@ async function saveHistory(e) {
         return;
     }
     
-    const type = document.getElementById('historyType').value;
     const diagnosis = document.getElementById('historyDiagnosis').value.trim();
-    const treatment = document.getElementById('historyTreatment').value.trim();
-    const meds = document.getElementById('historyMeds').value.trim();
-    
     if (!diagnosis) {
         showToast('⚠️ Ingrese diagnóstico');
         return;
     }
     
     try {
-        showToast('💾 Guardando consulta...');
+        showToast('💾 Guardando...');
         
-        // Subir archivos
         const uploadedFiles = [];
         for (const file of selectedFiles) {
             showToast(`📤 Subiendo ${file.name}...`);
@@ -1299,18 +1289,17 @@ async function saveHistory(e) {
             petId: selectedHistoryPet.id,
             clientId: selectedHistoryClient.id,
             date: getTodayDate(),
-            type,
+            type: document.getElementById('historyType').value,
             diagnosis,
-            treatment,
-            meds,
+            treatment: document.getElementById('historyTreatment').value.trim(),
+            meds: document.getElementById('historyMeds').value.trim(),
             attachments: uploadedFiles
         };
         
         await appendToSheet(CONFIG.SHEETS.HISTORIAL, [
-            newHistory.id, newHistory.petId, newHistory.clientId, newHistory.date, type, diagnosis, treatment, meds, '', new Date().toISOString()
+            newHistory.id, newHistory.petId, newHistory.clientId, newHistory.date, newHistory.type, diagnosis, newHistory.treatment, newHistory.meds, '', new Date().toISOString()
         ]);
         
-        // Guardar archivos adjuntos
         for (const file of uploadedFiles) {
             await appendToSheet(CONFIG.SHEETS.ARCHIVOS, [
                 Date.now(), newHistory.id, newHistory.petId, newHistory.clientId, file.name, file.type, Math.round(file.size / 1024), file.url, new Date().toISOString()
@@ -1321,7 +1310,7 @@ async function saveHistory(e) {
         closeModal('newHistory');
         resetHistoryForm();
         renderAll();
-        showToast('✅ Consulta guardada' + (uploadedFiles.length ? ` con ${uploadedFiles.length} archivo(s)` : ''));
+        showToast('✅ Consulta guardada');
         
     } catch (error) {
         console.error(error);
@@ -1330,7 +1319,7 @@ async function saveHistory(e) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// VER HISTORIAL DE MASCOTA
+// VER HISTORIAL
 // ══════════════════════════════════════════════════════════════════════
 function viewPetHistory(petId) {
     const pet = pets.find(p => p.id === petId);
@@ -1339,50 +1328,40 @@ function viewPetHistory(petId) {
     const owner = clients.find(c => c.id === pet.owner);
     const petHist = history.filter(h => h.petId === petId).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     
-    const content = document.getElementById('viewHistoryContent');
-    content.innerHTML = `
+    document.getElementById('viewHistoryContent').innerHTML = `
         <div id="printableHistory">
-            <div style="text-align: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 3px solid var(--primary);">
+            <div style="text-align: center; margin-bottom: 1.5rem; border-bottom: 3px solid var(--primary); padding-bottom: 1rem;">
                 <h1 style="font-family: 'Fredoka One', cursive; color: var(--primary);">🐾 VetCare</h1>
             </div>
-            
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                 <div style="background: var(--cream); padding: 1rem; border-radius: 12px;">
-                    <h3 style="color: var(--primary); margin-bottom: 0.5rem;">${getPetIcon(pet.type)} Mascota</h3>
-                    <p><strong>Nombre:</strong> ${pet.name}</p>
-                    <p><strong>Tipo:</strong> ${getPetTypeName(pet.type)}</p>
-                    <p><strong>Raza:</strong> ${pet.breed || '-'}</p>
-                    <p><strong>Edad:</strong> ${pet.age || '-'}</p>
-                    <p><strong>Peso:</strong> ${pet.weight ? pet.weight + ' kg' : '-'}</p>
+                    <h3 style="color: var(--primary);">${getPetIcon(pet.type)} Mascota</h3>
+                    <p><b>Nombre:</b> ${pet.name}</p>
+                    <p><b>Tipo:</b> ${getPetTypeName(pet.type)}</p>
+                    <p><b>Raza:</b> ${pet.breed || '-'}</p>
+                    <p><b>Edad:</b> ${pet.age || '-'}</p>
                 </div>
                 <div style="background: var(--mint); padding: 1rem; border-radius: 12px;">
-                    <h3 style="color: var(--primary); margin-bottom: 0.5rem;">👤 Propietario</h3>
-                    <p><strong>Nombre:</strong> ${owner?.name || '-'}</p>
-                    <p><strong>CI:</strong> ${owner?.cedula || '-'}</p>
-                    <p><strong>Teléfono:</strong> ${owner?.phone || '-'}</p>
-                    <p><strong>Email:</strong> ${owner?.email || '-'}</p>
+                    <h3 style="color: var(--primary);">👤 Propietario</h3>
+                    <p><b>Nombre:</b> ${owner?.name || '-'}</p>
+                    <p><b>CI:</b> ${owner?.cedula || '-'}</p>
+                    <p><b>Tel:</b> ${owner?.phone || '-'}</p>
                 </div>
             </div>
-            
-            <h3 style="color: var(--primary); margin-bottom: 1rem;">📋 Historial</h3>
-            
+            <h3 style="color: var(--primary);">📋 Historial</h3>
             ${petHist.length === 0 ? '<p style="text-align: center; color: var(--text-light);">Sin registros</p>' : 
             petHist.map(h => `
-                <div style="background: var(--cream); padding: 1rem; border-radius: 12px; margin-bottom: 0.8rem; border-left: 4px solid var(--primary);">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-                        <strong>${getTypeIcon(h.type)} ${getTypeName(h.type)}</strong>
+                <div style="background: var(--cream); padding: 1rem; border-radius: 12px; margin: 0.5rem 0; border-left: 4px solid var(--primary);">
+                    <div style="display: flex; justify-content: space-between;">
+                        <b>${getTypeIcon(h.type)} ${getTypeName(h.type)}</b>
                         <span style="color: var(--text-light);">${formatDate(h.date)}</span>
                     </div>
-                    <p><strong>Diagnóstico:</strong> ${h.diagnosis}</p>
-                    ${h.treatment ? `<p><strong>Tratamiento:</strong> ${h.treatment}</p>` : ''}
-                    ${h.meds ? `<p><strong>Medicamentos:</strong> ${h.meds}</p>` : ''}
-                    ${h.attachments?.length ? `<div style="margin-top: 0.5rem;">${h.attachments.map(a => `<a href="${a.url}" target="_blank" class="attachment-badge">📎 ${a.name}</a>`).join(' ')}</div>` : ''}
+                    <p><b>Diagnóstico:</b> ${h.diagnosis}</p>
+                    ${h.treatment ? `<p><b>Tratamiento:</b> ${h.treatment}</p>` : ''}
+                    ${h.meds ? `<p><b>Medicamentos:</b> ${h.meds}</p>` : ''}
+                    ${h.attachments?.length ? `<div>${h.attachments.map(a => `<a href="${a.url}" target="_blank" class="attachment-badge">📎 ${a.name}</a>`).join(' ')}</div>` : ''}
                 </div>
             `).join('')}
-            
-            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #ddd; text-align: center; color: var(--text-light); font-size: 0.8rem;">
-                Generado el ${formatDateLong(getTodayDate())}
-            </div>
         </div>
     `;
     
@@ -1394,29 +1373,16 @@ function printHistory() {
     if (!content) return;
     
     const win = window.open('', '_blank');
-    win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Historial - VetCare</title>
-            <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Fredoka+One&display=swap" rel="stylesheet">
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { font-family: 'Nunito', sans-serif; color: #4A5568; padding: 2cm; }
-                h1, h3 { font-family: 'Fredoka One', cursive; }
-                p { margin: 0.2rem 0; }
-                .attachment-badge { display: inline-block; padding: 0.2rem 0.5rem; background: #E6E0F0; color: #7B6BA8; border-radius: 5px; font-size: 0.7rem; text-decoration: none; }
-            </style>
-        </head>
-        <body>${content.innerHTML}</body>
-        </html>
-    `);
+    win.document.write(`<!DOCTYPE html><html><head><title>Historial</title>
+        <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Fredoka+One&display=swap" rel="stylesheet">
+        <style>body{font-family:'Nunito',sans-serif;color:#4A5568;padding:2cm;}h1,h3{font-family:'Fredoka One',cursive;}.attachment-badge{background:#E6E0F0;padding:2px 8px;border-radius:4px;font-size:12px;text-decoration:none;}</style>
+    </head><body>${content.innerHTML}</body></html>`);
     win.document.close();
     win.onload = () => win.print();
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// COMPLETAR CITA
+// ACCIONES
 // ══════════════════════════════════════════════════════════════════════
 async function completeAppointment(id, rowIndex) {
     if (!confirm('¿Marcar como completada?')) return;
@@ -1426,50 +1392,39 @@ async function completeAppointment(id, rowIndex) {
     
     try {
         showToast('💾 Actualizando...');
-        
         await updateSheetRow(CONFIG.SHEETS.CITAS, rowIndex, [
             appt.id, appt.petId, appt.clientId, appt.date, appt.time, appt.type, appt.notes, 'COMPLETADA', 'TRUE', new Date().toISOString()
         ]);
-        
         appt.completed = true;
         renderAll();
-        showToast('✅ Cita completada');
-        
+        showToast('✅ Completada');
     } catch (error) {
-        console.error(error);
         showToast('❌ Error');
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// ELIMINAR
-// ══════════════════════════════════════════════════════════════════════
 async function deleteClient(id, rowIndex) {
     if (!confirm('¿Eliminar cliente?')) return;
-    
     try {
         showToast('🗑️ Eliminando...');
         await deleteSheetRow(CONFIG.SHEETS.CLIENTES, rowIndex);
         clients = clients.filter(c => c.id !== id);
         renderAll();
-        showToast('✅ Cliente eliminado');
+        showToast('✅ Eliminado');
     } catch (error) {
-        console.error(error);
         showToast('❌ Error');
     }
 }
 
 async function deletePet(id, rowIndex) {
     if (!confirm('¿Eliminar mascota?')) return;
-    
     try {
         showToast('🗑️ Eliminando...');
         await deleteSheetRow(CONFIG.SHEETS.MASCOTAS, rowIndex);
         pets = pets.filter(p => p.id !== id);
         renderAll();
-        showToast('✅ Mascota eliminada');
+        showToast('✅ Eliminado');
     } catch (error) {
-        console.error(error);
         showToast('❌ Error');
     }
 }
@@ -1479,11 +1434,7 @@ async function deletePet(id, rowIndex) {
 // ══════════════════════════════════════════════════════════════════════
 function filterClients() {
     const q = (document.getElementById('clientSearch').value || '').toLowerCase();
-    renderAllClients(clients.filter(c => 
-        c.name.toLowerCase().includes(q) || 
-        c.cedula.includes(q) || 
-        c.phone.includes(q)
-    ));
+    renderAllClients(clients.filter(c => c.name.toLowerCase().includes(q) || c.cedula.includes(q) || c.phone.includes(q)));
 }
 
 function filterPets() {
@@ -1506,22 +1457,19 @@ function globalSearchFn() {
     const q = (document.getElementById('globalSearch').value || '').toLowerCase();
     const results = document.getElementById('searchResults');
     
-    if (!q) {
-        results.innerHTML = '';
-        return;
-    }
-    
-    const matchClients = clients.filter(c => c.name.toLowerCase().includes(q) || c.cedula.includes(q));
-    const matchPets = pets.filter(p => p.name.toLowerCase().includes(q));
+    if (!q) { results.innerHTML = ''; return; }
     
     let html = '';
-    if (matchClients.length) {
+    const mc = clients.filter(c => c.name.toLowerCase().includes(q) || c.cedula.includes(q));
+    const mp = pets.filter(p => p.name.toLowerCase().includes(q));
+    
+    if (mc.length) {
         html += '<h4 style="margin: 1rem 0 0.5rem; color: var(--primary);">👥 Clientes</h4>';
-        html += matchClients.map(c => `<div class="appointment-card">${c.name} <span class="ci-badge">CI: ${c.cedula}</span></div>`).join('');
+        html += mc.map(c => `<div class="appointment-card">${c.name} <span class="ci-badge">CI: ${c.cedula}</span></div>`).join('');
     }
-    if (matchPets.length) {
+    if (mp.length) {
         html += '<h4 style="margin: 1rem 0 0.5rem; color: var(--primary);">🐾 Mascotas</h4>';
-        html += matchPets.map(p => `<div class="appointment-card">${getPetIcon(p.type)} ${p.name}</div>`).join('');
+        html += mp.map(p => `<div class="appointment-card">${getPetIcon(p.type)} ${p.name}</div>`).join('');
     }
     
     results.innerHTML = html || '<p style="text-align: center; color: var(--text-light); padding: 2rem;">Sin resultados</p>';
