@@ -1,20 +1,21 @@
-/* ══════════════════════════════════════════════════════════════════════
-   VetCare - Configuración
-   ══════════════════════════════════════════════════════════════════════ */
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    ARCHIVO DE CONFIGURACIÓN - config.js                      ║
+// ║                         Sistema VetCare v2.0                                 ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
 
 const CONFIG = {
     
-    // Google Sheet ID
+    // ID del documento de Google Sheets
     GOOGLE_SHEET_ID: '11oCI6wOd_w2-YvVyChTeNvVlM-ULw0Ha2Yey4c08AhY',
     
-    // Credenciales OAuth
+    // Credenciales de Google API
     CLIENT_ID: '814005655098-8csk41qts3okv4b2fjnq7ls4qc2kq0vc.apps.googleusercontent.com',
     API_KEY: 'AIzaSyAOhGTjJXHhuUhqf1g2DPCla59xNzftb-Q',
     
     // Carpeta de Drive para archivos (opcional)
     DRIVE_FOLDER_ID: '',
     
-    // Nombres de las hojas
+    // Nombres de las hojas en Google Sheets
     SHEETS: {
         CLIENTES: 'Clientes',
         MASCOTAS: 'Mascotas',
