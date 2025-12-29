@@ -842,19 +842,20 @@ function sendAppointmentReminder(appointmentId) {
     const client = clients.find(c => c.id === appt.clientId);
     if (!client) return;
 
-    const message = '═══════════════════\n' +
-        '🔔 RECORDATORIO - VetCare\n' +
-        '═══════════════════\n\n' +
-        'Hola ' + client.name + ' 👋\n\n' +
+    // Mensaje con códigos Unicode para evitar problemas de codificación
+    const message = '\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n' +
+        '\uD83D\uDD14 RECORDATORIO - VetCare\n' +
+        '\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n' +
+        'Hola ' + client.name + ' \uD83D\uDC4B\n\n' +
         'Te recordamos que tienes una cita programada:\n\n' +
-        '📅 Fecha: ' + formatDateLong(appt.date) + '\n' +
-        '🕐 Hora: ' + appt.time + '\n' +
-        '🐶 Paciente: ' + (pet?.name || 'Tu mascota') + '\n' +
-        '🩺 Servicio: ' + getTypeName(appt.type) + '\n\n' +
-        '📍 Te esperamos en nuestra clinica.\n\n' +
-        '⚠️ Si necesitas reprogramar, contactanos con anticipacion.\n\n' +
-        'Gracias por tu preferencia 💚\n\n' +
-        '🏥 VetCare - Cuidamos a tu mejor amigo';
+        '\uD83D\uDCC5 Fecha: ' + formatDateLong(appt.date) + '\n' +
+        '\uD83D\uDD50 Hora: ' + appt.time + '\n' +
+        '\uD83D\uDC36 Paciente: ' + (pet?.name || 'Tu mascota') + '\n' +
+        '\uD83E\uDE7A Servicio: ' + getTypeName(appt.type) + '\n\n' +
+        '\uD83D\uDCCD Te esperamos en nuestra clinica.\n\n' +
+        '\u26A0\uFE0F Si necesitas reprogramar, contactanos con anticipacion.\n\n' +
+        'Gracias por tu preferencia \uD83D\uDC9A\n\n' +
+        '\uD83C\uDFE5 VetCare - Cuidamos a tu mejor amigo';
 
     sendWhatsApp(client.phone, message);
 }
@@ -1232,22 +1233,23 @@ async function saveAppointment(e) {
         
         appointments.push(newAppt);
         
-        var message = '═══════════════════\n' +
-            '🐾 CITA AGENDADA - VetCare\n' +
-            '═══════════════════\n\n' +
-            'Hola ' + selectedAppointmentClient.name + ' 👋\n\n' +
-            'Tu cita ha sido confirmada con exito ✅\n\n' +
-            '📅 Fecha: ' + formatDateLong(date) + '\n' +
-            '🕐 Hora: ' + time + '\n' +
-            '🐶 Paciente: ' + selectedAppointmentPet.name + '\n' +
-            '🩺 Servicio: ' + getTypeName(type) + '\n\n' +
-            '📍 Te esperamos en nuestra clinica.\n\n' +
-            '💡 Recuerda:\n' +
-            '• Llegar 10 min antes\n' +
-            '• Traer carnet de vacunas\n' +
-            '• Si no puedes asistir, avisanos\n\n' +
-            'Gracias por confiar en nosotros 💚\n\n' +
-            '🏥 VetCare - Cuidamos a tu mejor amigo';
+        // Mensaje con códigos Unicode para evitar problemas de codificación
+        var message = '\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n' +
+            '\uD83D\uDC3E CITA AGENDADA - VetCare\n' +
+            '\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n' +
+            'Hola ' + selectedAppointmentClient.name + ' \uD83D\uDC4B\n\n' +
+            'Tu cita ha sido confirmada con exito \u2705\n\n' +
+            '\uD83D\uDCC5 Fecha: ' + formatDateLong(date) + '\n' +
+            '\uD83D\uDD50 Hora: ' + time + '\n' +
+            '\uD83D\uDC36 Paciente: ' + selectedAppointmentPet.name + '\n' +
+            '\uD83E\uDE7A Servicio: ' + getTypeName(type) + '\n\n' +
+            '\uD83D\uDCCD Te esperamos en nuestra clinica.\n\n' +
+            '\uD83D\uDCA1 Recuerda:\n' +
+            '\u2022 Llegar 10 min antes\n' +
+            '\u2022 Traer carnet de vacunas\n' +
+            '\u2022 Si no puedes asistir, avisanos\n\n' +
+            'Gracias por confiar en nosotros \uD83D\uDC9A\n\n' +
+            '\uD83C\uDFE5 VetCare - Cuidamos a tu mejor amigo';
 
         sendWhatsApp(selectedAppointmentClient.phone, message);
         
