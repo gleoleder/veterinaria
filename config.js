@@ -12,15 +12,16 @@ const CONFIG = {
     CLIENT_ID: '814005655098-8csk41qts3okv4b2fjnq7ls4qc2kq0vc.apps.googleusercontent.com',
     API_KEY: 'AIzaSyAOhGTjJXHhuUhqf1g2DPCla59xNzftb-Q',
     
-    // Carpeta de Drive para archivos (opcional)
-    DRIVE_FOLDER_ID: '1jw8mhMwtRwkHU3RIPasdcc3O_7-rnesH',
+    // Carpeta de Drive para archivos (opcional - dejar vacío si no se usa)
+    DRIVE_FOLDER_ID: '',
     
     // Nombres de las hojas en Google Sheets
+    // IMPORTANTE: Deben coincidir EXACTAMENTE con los nombres de las pestañas
     SHEETS: {
         CLIENTES: 'Clientes',
         MASCOTAS: 'Mascotas',
         CITAS: 'Citas',
-        HISTORIAL: 'Historial',
-        ARCHIVOS: 'Archivos'
+        HISTORIAL: 'Historial_Clinico',
+        ARCHIVOS: 'Archivos_Adjuntos'
     }
 };
