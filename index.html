@@ -13,6 +13,9 @@
     <!-- Estilos -->
     <link rel="stylesheet" href="styles.css">
 
+    <!-- Librería para generar PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <!-- IMPORTANTE: El orden de carga de scripts es CRÍTICO                     -->
     <!-- 1. Primero config.js (configuración)                                    -->
@@ -616,6 +619,121 @@
 <div class="toast" id="toast">
     <span class="toast-icon">✅</span>
     <span class="toast-message"></span>
+</div>
+
+<!-- ==================== TEMPLATE PDF HISTORIAL CLÍNICO ==================== -->
+<div id="pdfTemplate" style="position: absolute; left: -9999px; top: -9999px; width: 210mm; background: white;">
+    <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #7C9A92; padding-bottom: 15px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div style="font-size: 40px;">🐾</div>
+                <div>
+                    <div style="font-size: 24px; font-weight: bold; color: #7C9A92;">VetCare</div>
+                    <div style="font-size: 12px; color: #666;">Clinica Veterinaria</div>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 16px; font-weight: bold; color: #7C9A92;" id="pdfDocNumber">HC-000000</div>
+                <div style="font-size: 11px; color: #666;" id="pdfFechaDoc">Fecha: --</div>
+            </div>
+        </div>
+        
+        <!-- Título -->
+        <div style="background: linear-gradient(135deg, #7C9A92, #5a7a72); color: white; text-align: center; padding: 12px; font-size: 18px; font-weight: bold; border-radius: 8px; margin-bottom: 20px; letter-spacing: 2px;">
+            HISTORIAL CLINICO
+        </div>
+        
+        <!-- Datos del Paciente -->
+        <div style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+            <div style="background: #f5f5f5; padding: 8px 15px; font-weight: bold; color: #7C9A92; border-bottom: 1px solid #ddd;">
+                🐕 DATOS DEL PACIENTE
+            </div>
+            <div style="padding: 15px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Nombre:</strong> <span id="pdfPetName">--</span></td>
+                        <td style="padding: 5px 0;"><strong>Especie:</strong> <span id="pdfPetType">--</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Raza:</strong> <span id="pdfPetBreed">--</span></td>
+                        <td style="padding: 5px 0;"><strong>Edad:</strong> <span id="pdfPetAge">--</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Peso:</strong> <span id="pdfPetWeight">--</span></td>
+                        <td></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Datos del Propietario -->
+        <div style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+            <div style="background: #f5f5f5; padding: 8px 15px; font-weight: bold; color: #7C9A92; border-bottom: 1px solid #ddd;">
+                👤 DATOS DEL PROPIETARIO
+            </div>
+            <div style="padding: 15px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Nombre:</strong> <span id="pdfClientName">--</span></td>
+                        <td style="padding: 5px 0;"><strong>CI:</strong> <span id="pdfClientCI">--</span></td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Telefono:</strong> <span id="pdfClientPhone">--</span></td>
+                        <td style="padding: 5px 0;"><strong>Direccion:</strong> <span id="pdfClientAddress">--</span></td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Datos de la Consulta -->
+        <div style="border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; overflow: hidden;">
+            <div style="background: #f5f5f5; padding: 8px 15px; font-weight: bold; color: #7C9A92; border-bottom: 1px solid #ddd;">
+                🩺 DATOS DE LA CONSULTA
+            </div>
+            <div style="padding: 15px;">
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px;">
+                    <tr>
+                        <td style="padding: 5px 0;"><strong>Tipo:</strong> <span id="pdfConsultType">--</span></td>
+                        <td style="padding: 5px 0;"><strong>Fecha:</strong> <span id="pdfConsultDate">--</span></td>
+                    </tr>
+                </table>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="font-weight: bold; color: #7C9A92; margin-bottom: 5px;">DIAGNOSTICO:</div>
+                    <div style="background: #fafafa; border: 1px solid #eee; border-radius: 5px; padding: 10px; min-height: 60px;" id="pdfDiagnosis">--</div>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="font-weight: bold; color: #7C9A92; margin-bottom: 5px;">TRATAMIENTO:</div>
+                    <div style="background: #fafafa; border: 1px solid #eee; border-radius: 5px; padding: 10px; min-height: 60px;" id="pdfTreatment">--</div>
+                </div>
+                
+                <div style="margin-bottom: 12px;">
+                    <div style="font-weight: bold; color: #7C9A92; margin-bottom: 5px;">MEDICAMENTOS RECETADOS:</div>
+                    <div style="background: #fafafa; border: 1px solid #eee; border-radius: 5px; padding: 10px; min-height: 40px;" id="pdfMeds">--</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Footer con firmas -->
+        <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #7C9A92;">
+            <div style="display: flex; justify-content: space-between; margin-top: 50px;">
+                <div style="text-align: center; width: 200px;">
+                    <div style="border-top: 1px solid #333; margin-bottom: 5px;"></div>
+                    <div style="font-size: 11px; color: #666;">Firma del Veterinario</div>
+                </div>
+                <div style="text-align: center; width: 200px;">
+                    <div style="border-top: 1px solid #333; margin-bottom: 5px;"></div>
+                    <div style="font-size: 11px; color: #666;">Firma del Propietario</div>
+                </div>
+            </div>
+            <div style="text-align: center; font-size: 9px; color: #999; margin-top: 20px;">
+                Este documento es un registro oficial de la consulta veterinaria.<br>
+                VetCare - Sistema de Gestion Veterinaria | Documento generado automaticamente
+            </div>
+        </div>
+    </div>
 </div>
 
 </body>
