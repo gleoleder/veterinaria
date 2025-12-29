@@ -1391,435 +1391,110 @@ function removeFile(index) {
 
 // ╔════════════════════════════════════════════════════════════════════════════╗
 // ║                    GENERADOR DE PDF - HISTORIAL CLÍNICO                     ║
+// ║                    Usando html2pdf.js                                        ║
 // ╚════════════════════════════════════════════════════════════════════════════╝
 
 /**
- * Genera el HTML del historial clínico en formato carta para PDF
+ * Nombres de tipos de consulta
  */
-function generateHistoryPDFContent(historyData, pet, client) {
+const TIPOS_CONSULTA = {
+    'checkup': 'Revision General',
+    'vaccine': 'Vacunacion',
+    'surgery': 'Cirugia',
+    'treatment': 'Tratamiento',
+    'emergency': 'Emergencia',
+    'dental': 'Dental',
+    'grooming': 'Estetica'
+};
+
+/**
+ * Nombres de tipos de mascota
+ */
+const TIPOS_MASCOTA = {
+    'dog': 'Canino',
+    'cat': 'Felino',
+    'bird': 'Ave',
+    'rabbit': 'Conejo'
+};
+
+/**
+ * Llena el template del PDF con los datos del historial
+ */
+function fillPdfTemplate(historyId, historyData, pet, client) {
     const fechaHoy = new Date().toLocaleDateString('es-ES', { 
         weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
     });
     
-    const tipoConsulta = {
-        'checkup': 'Revision General',
-        'vaccine': 'Vacunacion',
-        'surgery': 'Cirugia',
-        'treatment': 'Tratamiento',
-        'emergency': 'Emergencia',
-        'dental': 'Dental',
-        'grooming': 'Estetica'
-    };
+    // Datos del documento
+    document.getElementById('pdfDocNumber').textContent = 'HC-' + historyId;
+    document.getElementById('pdfFechaDoc').textContent = 'Fecha: ' + fechaHoy;
     
-    const tipoMascota = {
-        'dog': 'Canino',
-        'cat': 'Felino',
-        'bird': 'Ave',
-        'rabbit': 'Conejo'
-    };
-
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <style>
-            @page {
-                size: letter;
-                margin: 1.5cm;
-            }
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            body {
-                font-family: Arial, sans-serif;
-                font-size: 11pt;
-                line-height: 1.4;
-                color: #333;
-                background: white;
-            }
-            .container {
-                max-width: 100%;
-                padding: 10px;
-            }
-            
-            /* HEADER */
-            .header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                border-bottom: 3px solid #7C9A92;
-                padding-bottom: 15px;
-                margin-bottom: 20px;
-            }
-            .logo-section {
-                display: flex;
-                align-items: center;
-                gap: 15px;
-            }
-            .logo {
-                font-size: 40pt;
-            }
-            .clinic-name {
-                font-size: 24pt;
-                font-weight: bold;
-                color: #7C9A92;
-            }
-            .clinic-subtitle {
-                font-size: 10pt;
-                color: #666;
-            }
-            .doc-info {
-                text-align: right;
-                font-size: 9pt;
-                color: #666;
-            }
-            .doc-number {
-                font-size: 14pt;
-                font-weight: bold;
-                color: #7C9A92;
-            }
-            
-            /* TÍTULO */
-            .title {
-                background: linear-gradient(135deg, #7C9A92, #5a7a72);
-                color: white;
-                text-align: center;
-                padding: 12px;
-                font-size: 16pt;
-                font-weight: bold;
-                border-radius: 8px;
-                margin-bottom: 20px;
-                letter-spacing: 2px;
-            }
-            
-            /* SECCIONES */
-            .section {
-                margin-bottom: 15px;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-                overflow: hidden;
-            }
-            .section-header {
-                background: #f5f5f5;
-                padding: 8px 15px;
-                font-weight: bold;
-                color: #7C9A92;
-                border-bottom: 1px solid #ddd;
-                font-size: 11pt;
-            }
-            .section-content {
-                padding: 15px;
-            }
-            
-            /* GRID DE DATOS */
-            .data-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 10px;
-            }
-            .data-item {
-                display: flex;
-                gap: 5px;
-            }
-            .data-label {
-                font-weight: bold;
-                color: #555;
-                min-width: 100px;
-            }
-            .data-value {
-                color: #333;
-            }
-            
-            /* CAMPOS DE TEXTO LARGO */
-            .text-field {
-                margin-bottom: 12px;
-            }
-            .text-label {
-                font-weight: bold;
-                color: #7C9A92;
-                margin-bottom: 5px;
-                font-size: 10pt;
-            }
-            .text-content {
-                background: #fafafa;
-                border: 1px solid #eee;
-                border-radius: 5px;
-                padding: 10px;
-                min-height: 60px;
-                white-space: pre-wrap;
-            }
-            
-            /* FOOTER */
-            .footer {
-                margin-top: 30px;
-                padding-top: 20px;
-                border-top: 2px solid #7C9A92;
-            }
-            .signatures {
-                display: flex;
-                justify-content: space-between;
-                margin-top: 40px;
-            }
-            .signature-box {
-                text-align: center;
-                width: 200px;
-            }
-            .signature-line {
-                border-top: 1px solid #333;
-                margin-bottom: 5px;
-            }
-            .signature-label {
-                font-size: 9pt;
-                color: #666;
-            }
-            .footer-note {
-                text-align: center;
-                font-size: 8pt;
-                color: #999;
-                margin-top: 20px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <!-- HEADER -->
-            <div class="header">
-                <div class="logo-section">
-                    <div class="logo">🐾</div>
-                    <div>
-                        <div class="clinic-name">VetCare</div>
-                        <div class="clinic-subtitle">Clinica Veterinaria</div>
-                    </div>
-                </div>
-                <div class="doc-info">
-                    <div class="doc-number">HC-${historyData.id}</div>
-                    <div>Fecha: ${fechaHoy}</div>
-                </div>
-            </div>
-            
-            <!-- TÍTULO -->
-            <div class="title">HISTORIAL CLINICO</div>
-            
-            <!-- DATOS DEL PACIENTE -->
-            <div class="section">
-                <div class="section-header">🐕 DATOS DEL PACIENTE</div>
-                <div class="section-content">
-                    <div class="data-grid">
-                        <div class="data-item">
-                            <span class="data-label">Nombre:</span>
-                            <span class="data-value">${pet.name}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">Especie:</span>
-                            <span class="data-value">${tipoMascota[pet.type] || pet.type}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">Raza:</span>
-                            <span class="data-value">${pet.breed || 'No especificada'}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">Edad:</span>
-                            <span class="data-value">${pet.age || 'No especificada'}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">Peso:</span>
-                            <span class="data-value">${pet.weight ? pet.weight + ' kg' : 'No especificado'}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- DATOS DEL PROPIETARIO -->
-            <div class="section">
-                <div class="section-header">👤 DATOS DEL PROPIETARIO</div>
-                <div class="section-content">
-                    <div class="data-grid">
-                        <div class="data-item">
-                            <span class="data-label">Nombre:</span>
-                            <span class="data-value">${client.name}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">CI:</span>
-                            <span class="data-value">${client.cedula}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">Telefono:</span>
-                            <span class="data-value">${client.phone}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">Direccion:</span>
-                            <span class="data-value">${client.address || 'No especificada'}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- DATOS DE LA CONSULTA -->
-            <div class="section">
-                <div class="section-header">🩺 DATOS DE LA CONSULTA</div>
-                <div class="section-content">
-                    <div class="data-grid" style="margin-bottom: 15px;">
-                        <div class="data-item">
-                            <span class="data-label">Tipo:</span>
-                            <span class="data-value">${tipoConsulta[historyData.type] || historyData.type}</span>
-                        </div>
-                        <div class="data-item">
-                            <span class="data-label">Fecha:</span>
-                            <span class="data-value">${historyData.date}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="text-field">
-                        <div class="text-label">DIAGNOSTICO:</div>
-                        <div class="text-content">${historyData.diagnosis || 'No especificado'}</div>
-                    </div>
-                    
-                    <div class="text-field">
-                        <div class="text-label">TRATAMIENTO:</div>
-                        <div class="text-content">${historyData.treatment || 'No especificado'}</div>
-                    </div>
-                    
-                    <div class="text-field">
-                        <div class="text-label">MEDICAMENTOS RECETADOS:</div>
-                        <div class="text-content">${historyData.meds || 'Ninguno'}</div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- FOOTER -->
-            <div class="footer">
-                <div class="signatures">
-                    <div class="signature-box">
-                        <div class="signature-line"></div>
-                        <div class="signature-label">Firma del Veterinario</div>
-                    </div>
-                    <div class="signature-box">
-                        <div class="signature-line"></div>
-                        <div class="signature-label">Firma del Propietario</div>
-                    </div>
-                </div>
-                <div class="footer-note">
-                    Este documento es un registro oficial de la consulta veterinaria.<br>
-                    VetCare - Sistema de Gestion Veterinaria | Documento generado automaticamente
-                </div>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
+    // Datos del paciente
+    document.getElementById('pdfPetName').textContent = pet.name || '--';
+    document.getElementById('pdfPetType').textContent = TIPOS_MASCOTA[pet.type] || pet.type || '--';
+    document.getElementById('pdfPetBreed').textContent = pet.breed || 'No especificada';
+    document.getElementById('pdfPetAge').textContent = pet.age || 'No especificada';
+    document.getElementById('pdfPetWeight').textContent = pet.weight ? pet.weight + ' kg' : 'No especificado';
+    
+    // Datos del propietario
+    document.getElementById('pdfClientName').textContent = client.name || '--';
+    document.getElementById('pdfClientCI').textContent = client.cedula || '--';
+    document.getElementById('pdfClientPhone').textContent = client.phone || '--';
+    document.getElementById('pdfClientAddress').textContent = client.address || 'No especificada';
+    
+    // Datos de la consulta
+    document.getElementById('pdfConsultType').textContent = TIPOS_CONSULTA[historyData.type] || historyData.type || '--';
+    document.getElementById('pdfConsultDate').textContent = historyData.date || '--';
+    document.getElementById('pdfDiagnosis').textContent = historyData.diagnosis || 'No especificado';
+    document.getElementById('pdfTreatment').textContent = historyData.treatment || 'No especificado';
+    document.getElementById('pdfMeds').textContent = historyData.meds || 'Ninguno';
 }
 
 /**
- * Convierte HTML a PDF usando el navegador y lo sube a Drive
+ * Genera el PDF usando html2pdf y lo convierte a Blob
  */
-async function generateAndUploadPDF(historyData, pet, client) {
-    showToast('Generando PDF...', 'warning');
+async function generatePdfBlob(historyId, historyData, pet, client) {
+    // Llenar template
+    fillPdfTemplate(historyId, historyData, pet, client);
     
-    // Generar contenido HTML
-    const htmlContent = generateHistoryPDFContent(historyData, pet, client);
+    // Obtener elemento template
+    const element = document.getElementById('pdfTemplate');
     
-    // Crear iframe oculto para imprimir
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.left = '-9999px';
-    iframe.style.top = '-9999px';
-    iframe.style.width = '816px'; // Tamaño carta
-    iframe.style.height = '1056px';
-    document.body.appendChild(iframe);
-    
-    // Escribir contenido en el iframe
-    const iframeDoc = iframe.contentWindow.document;
-    iframeDoc.open();
-    iframeDoc.write(htmlContent);
-    iframeDoc.close();
-    
-    // Esperar a que cargue
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Crear el PDF usando html2canvas y jsPDF (cargados dinámicamente)
-    try {
-        // Cargar librerías si no están
-        if (typeof html2canvas === 'undefined') {
-            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-        }
-        if (typeof jspdf === 'undefined' && typeof jsPDF === 'undefined') {
-            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
-        }
-        
-        showToast('Procesando PDF...', 'warning');
-        
-        // Capturar el contenido como canvas
-        const canvas = await html2canvas(iframeDoc.body, {
+    // Configuración del PDF
+    const opt = {
+        margin: 10,
+        filename: 'HC_' + historyId + '_' + pet.name + '.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
             scale: 2,
             useCORS: true,
             logging: false
-        });
-        
-        // Crear PDF
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'letter');
-        
-        const imgWidth = 215.9; // Letter width in mm
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
-        
-        // Convertir a Blob
-        const pdfBlob = pdf.output('blob');
-        
-        // Limpiar iframe
-        document.body.removeChild(iframe);
-        
-        // Subir a Drive
-        showToast('Subiendo PDF a Drive...', 'warning');
-        const pdfUrl = await uploadPDFToDrive(pdfBlob, historyData, pet, client);
-        
-        return pdfUrl;
-        
-    } catch (error) {
-        console.error('Error generando PDF:', error);
-        document.body.removeChild(iframe);
-        
-        // Método alternativo: abrir ventana de impresión
-        showToast('Abriendo ventana de impresion...', 'warning');
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(htmlContent);
-        printWindow.document.close();
-        printWindow.onload = function() {
-            printWindow.print();
-        };
-        
-        return null;
-    }
+        },
+        jsPDF: { 
+            unit: 'mm', 
+            format: 'letter', 
+            orientation: 'portrait' 
+        }
+    };
+    
+    // Generar PDF como Blob
+    const pdfBlob = await html2pdf().from(element).set(opt).outputPdf('blob');
+    
+    return pdfBlob;
 }
 
 /**
- * Carga un script dinámicamente
+ * Sube el PDF a Google Drive y retorna el URL
  */
-function loadScript(src) {
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
-
-/**
- * Sube el PDF a Google Drive
- */
-async function uploadPDFToDrive(pdfBlob, historyData, pet, client) {
-    const fileName = `HC_${historyData.id}_${pet.name}_${historyData.date}.pdf`;
+async function uploadPdfToDrive(pdfBlob, historyId, petName) {
+    const fileName = 'HC_' + historyId + '_' + petName + '_' + getTodayDate() + '.pdf';
     
     const metadata = {
         name: fileName,
         mimeType: 'application/pdf'
     };
     
+    // Agregar a carpeta si está configurada
     if (CONFIG.DRIVE_FOLDER_ID && CONFIG.DRIVE_FOLDER_ID.length > 10) {
         metadata.parents = [CONFIG.DRIVE_FOLDER_ID];
     }
@@ -1835,12 +1510,14 @@ async function uploadPDFToDrive(pdfBlob, historyData, pet, client) {
     });
     
     if (!response.ok) {
+        const errData = await response.json();
+        console.error('Error subiendo PDF:', errData);
         throw new Error('Error subiendo PDF a Drive');
     }
     
     const data = await response.json();
     
-    // Hacer público
+    // Hacer público el archivo
     try {
         await fetch('https://www.googleapis.com/drive/v3/files/' + data.id + '/permissions', {
             method: 'POST',
@@ -1850,137 +1527,203 @@ async function uploadPDFToDrive(pdfBlob, historyData, pet, client) {
             },
             body: JSON.stringify({ role: 'reader', type: 'anyone' })
         });
-    } catch (e) {
-        console.warn('No se pudo hacer publico el PDF:', e);
+    } catch (permError) {
+        console.warn('No se pudo hacer publico el PDF:', permError);
     }
     
     return data.webViewLink || 'https://drive.google.com/file/d/' + data.id + '/view';
 }
 
 /**
+ * Actualiza una celda específica en Google Sheets
+ */
+async function updateSheetCell(sheetName, row, col, value) {
+    const colLetter = String.fromCharCode(64 + col); // 1=A, 2=B, etc.
+    const range = sheetName + '!' + colLetter + row;
+    
+    await gapi.client.sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: range,
+        valueInputOption: 'RAW',
+        resource: { values: [[value]] }
+    });
+}
+
+/**
+ * Obtiene el número de la última fila usada en una hoja
+ */
+async function getLastRowNumber(sheetName) {
+    const response = await gapi.client.sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: sheetName + '!A:A'
+    });
+    
+    const values = response.result.values || [];
+    return values.length;
+}
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    GUARDAR HISTORIAL CLÍNICO COMPLETO                       ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+/**
  * FUNCIÓN PRINCIPAL: Guardar historial con PDF
+ * Flujo: Guardar datos → Generar PDF → Subir a Drive → Actualizar link en Sheets
  */
 async function saveHistory(e) {
     e.preventDefault();
     
+    // Validaciones
     if (!selectedHistoryClient || !selectedHistoryPet) {
         showToast('Seleccione cliente y mascota', 'warning');
         return;
     }
     
-    var diagnosis = document.getElementById('historyDiagnosis').value.trim();
+    const diagnosis = document.getElementById('historyDiagnosis').value.trim();
     if (!diagnosis) {
         showToast('Ingrese diagnostico', 'warning');
         return;
     }
     
+    // ═══════════════════════════════════════════════════════════════════════
+    // USAR UN ÚNICO ID PARA TODO EL PROCESO
+    // ═══════════════════════════════════════════════════════════════════════
+    const HISTORY_ID = Date.now();
+    
     try {
-        showToast('Guardando historial...', 'warning');
-        
-        // Crear objeto de historial
-        var newHistory = {
-            id: Date.now(),
+        // ═══════════════════════════════════════════════════════════════════
+        // PASO 1: PREPARAR DATOS DEL HISTORIAL
+        // ═══════════════════════════════════════════════════════════════════
+        const historyData = {
+            id: HISTORY_ID,
             petId: selectedHistoryPet.id,
             clientId: selectedHistoryClient.id,
             date: getTodayDate(),
             type: document.getElementById('historyType').value,
             diagnosis: diagnosis,
             treatment: document.getElementById('historyTreatment').value.trim(),
-            meds: document.getElementById('historyMeds').value.trim(),
-            attachments: [],
-            pdfUrl: ''
+            meds: document.getElementById('historyMeds').value.trim()
         };
         
-        // ═══════════════════════════════════════════════════════════════
-        // PASO 1: GUARDAR PRIMERO EN GOOGLE SHEETS (LO MÁS IMPORTANTE)
-        // ═══════════════════════════════════════════════════════════════
-        console.log('Guardando en hoja:', SHEETS.HISTORIAL);
+        console.log('📋 Guardando historial con ID:', HISTORY_ID);
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // PASO 2: GUARDAR EN GOOGLE SHEETS (SIN PDF AÚN)
+        // ═══════════════════════════════════════════════════════════════════
+        showToast('Guardando en Google Sheets...', 'warning');
+        
         await appendToSheet(SHEETS.HISTORIAL, [
-            newHistory.id,                    // A: ID
-            newHistory.petId,                 // B: MascotaID
-            newHistory.clientId,              // C: ClienteID
-            newHistory.date,                  // D: Fecha
-            newHistory.type,                  // E: TipoConsulta
-            newHistory.diagnosis,             // F: Diagnostico
-            newHistory.treatment,             // G: Tratamiento
-            newHistory.meds,                  // H: Medicamentos
+            HISTORY_ID,                       // A: ID
+            historyData.petId,                // B: MascotaID
+            historyData.clientId,             // C: ClienteID
+            historyData.date,                 // D: Fecha
+            historyData.type,                 // E: TipoConsulta
+            historyData.diagnosis,            // F: Diagnostico
+            historyData.treatment,            // G: Tratamiento
+            historyData.meds,                 // H: Medicamentos
             emailUsuario || '',               // I: Veterinario
-            '',                               // J: LinkPDF (vacío por ahora)
+            '',                               // J: LinkPDF (vacío, se llena después)
             new Date().toISOString()          // K: FechaCreacion
         ]);
         
-        // Datos guardados exitosamente
-        history.push(newHistory);
-        showToast('Datos guardados!', 'success');
+        console.log('✅ Datos guardados en Sheets');
         
-        // ═══════════════════════════════════════════════════════════════
-        // PASO 2: INTENTAR GENERAR PDF (OPCIONAL - NO BLOQUEA SI FALLA)
-        // ═══════════════════════════════════════════════════════════════
-        var pdfUrl = '';
+        // Obtener número de fila donde se guardó
+        const rowNumber = await getLastRowNumber(SHEETS.HISTORIAL);
+        console.log('📍 Fila guardada:', rowNumber);
+        
+        // ═══════════════════════════════════════════════════════════════════
+        // PASO 3: GENERAR PDF
+        // ═══════════════════════════════════════════════════════════════════
+        let pdfUrl = '';
+        
         try {
             showToast('Generando PDF...', 'warning');
-            pdfUrl = await generateAndUploadPDF(newHistory, selectedHistoryPet, selectedHistoryClient);
             
-            if (pdfUrl) {
-                newHistory.pdfUrl = pdfUrl;
-                // Actualizar la fila con el link del PDF
-                // Buscar el índice de la fila recién agregada
-                showToast('PDF subido a Drive!', 'success');
-            }
+            // Generar PDF como Blob
+            const pdfBlob = await generatePdfBlob(HISTORY_ID, historyData, selectedHistoryPet, selectedHistoryClient);
+            console.log('✅ PDF generado');
+            
+            // ═══════════════════════════════════════════════════════════════
+            // PASO 4: SUBIR PDF A GOOGLE DRIVE
+            // ═══════════════════════════════════════════════════════════════
+            showToast('Subiendo PDF a Drive...', 'warning');
+            
+            pdfUrl = await uploadPdfToDrive(pdfBlob, HISTORY_ID, selectedHistoryPet.name);
+            console.log('✅ PDF subido a Drive:', pdfUrl);
+            
+            // ═══════════════════════════════════════════════════════════════
+            // PASO 5: ACTUALIZAR LINK DEL PDF EN SHEETS (Columna J)
+            // ═══════════════════════════════════════════════════════════════
+            showToast('Actualizando link en Sheets...', 'warning');
+            
+            await updateSheetCell(SHEETS.HISTORIAL, rowNumber, 10, pdfUrl); // Columna J = 10
+            console.log('✅ Link PDF actualizado en Sheets');
+            
         } catch (pdfError) {
-            console.error('Error generando PDF:', pdfError);
+            console.error('⚠️ Error con PDF:', pdfError);
             showToast('PDF no generado, pero datos guardados', 'warning');
         }
         
-        // ═══════════════════════════════════════════════════════════════
-        // PASO 3: SUBIR ARCHIVOS ADJUNTOS (SI HAY)
-        // ═══════════════════════════════════════════════════════════════
-        var uploadedFiles = [];
+        // ═══════════════════════════════════════════════════════════════════
+        // PASO 6: SUBIR ARCHIVOS ADJUNTOS (SI HAY)
+        // ═══════════════════════════════════════════════════════════════════
         if (selectedFiles.length > 0) {
-            for (var i = 0; i < selectedFiles.length; i++) {
+            for (let i = 0; i < selectedFiles.length; i++) {
                 try {
-                    showToast('Subiendo ' + selectedFiles[i].name + '...', 'warning');
-                    var uploaded = await uploadFileToDrive(selectedFiles[i]);
-                    uploadedFiles.push(uploaded);
+                    showToast('Subiendo archivo ' + (i + 1) + '/' + selectedFiles.length + '...', 'warning');
+                    
+                    const uploaded = await uploadFileToDrive(selectedFiles[i]);
                     
                     // Guardar referencia en hoja Archivos_Adjuntos
                     await appendToSheet(SHEETS.ARCHIVOS, [
-                        Date.now() + i,
-                        newHistory.id,
-                        newHistory.petId,
-                        newHistory.clientId,
-                        uploaded.name,
-                        uploaded.type,
-                        Math.round(uploaded.size / 1024),
-                        uploaded.url,
-                        new Date().toISOString()
+                        HISTORY_ID + '_' + i,     // A: ID único
+                        HISTORY_ID,               // B: HistorialID (mismo ID!)
+                        historyData.petId,        // C: MascotaID
+                        historyData.clientId,     // D: ClienteID
+                        uploaded.name,            // E: NombreArchivo
+                        uploaded.type,            // F: TipoArchivo
+                        Math.round(uploaded.size / 1024), // G: TamanoKB
+                        uploaded.url,             // H: URLDrive
+                        new Date().toISOString()  // I: FechaSubida
                     ]);
-                } catch (uploadError) {
-                    console.error('Error subiendo archivo:', uploadError);
+                    
+                    console.log('✅ Archivo adjunto guardado:', uploaded.name);
+                    
+                } catch (fileError) {
+                    console.error('⚠️ Error subiendo archivo:', fileError);
                 }
             }
         }
-        newHistory.attachments = uploadedFiles;
         
-        // ═══════════════════════════════════════════════════════════════
-        // PASO 4: CERRAR MODAL Y ACTUALIZAR UI
-        // ═══════════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════════════
+        // PASO 7: ACTUALIZAR UI Y CERRAR MODAL
+        // ═══════════════════════════════════════════════════════════════════
+        
+        // Agregar a lista local
+        history.push({
+            ...historyData,
+            pdfUrl: pdfUrl,
+            attachments: []
+        });
+        
+        // Cerrar y limpiar
         closeModal('newHistory');
         resetHistoryForm();
         renderAll();
         
+        // Mensaje final
         if (pdfUrl) {
-            showToast('Historial completo con PDF!', 'success');
+            showToast('Historial guardado con PDF!', 'success');
         } else {
             showToast('Historial guardado correctamente', 'success');
         }
         
     } catch (error) {
-        console.error('Error guardando historial:', error);
+        console.error('❌ Error guardando historial:', error);
         showToast('Error: ' + (error.message || 'al guardar'), 'error');
     }
 }
-
 
 // ╔════════════════════════════════════════════════════════════════════════════╗
 // ║                    SECCIÓN 18: VER HISTORIAL                                ║
