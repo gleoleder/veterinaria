@@ -2,374 +2,621 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>🐾 VetCare - Sistema de Gestión Veterinaria</title>
+
+    <!-- Fuentes -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka+One&display=swap" rel="stylesheet">
+
+    <!-- Estilos -->
     <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <!-- Pantalla de Login -->
-    <div id="loginScreen" class="login-screen">
-        <div class="login-container">
-            <div class="login-logo">🐾</div>
-            <h1 class="login-title">VetCare</h1>
-            <p class="login-subtitle">Sistema de Gestión Veterinaria</p>
-            <button id="btnLogin" class="btn btn-google" onclick="handleAuthClick()">
-                <svg width="24" height="24" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                Iniciar Sesión con Google
-            </button>
-            <p class="login-note">Conecta con tu cuenta de Google autorizada</p>
-            <div id="loginError" class="login-error" style="display: none;"></div>
-        </div>
-    </div>
 
-    <!-- Pantalla de Carga -->
-    <div id="loadingScreen" class="loading-screen" style="display: none;">
-        <div class="loading-container">
-            <div class="loading-spinner">🐾</div>
-            <p class="loading-text">Cargando datos...</p>
-        </div>
-    </div>
-
-    <!-- Aplicación Principal -->
-    <div id="mainApp" style="display: none;">
-        <div class="floating-paws" id="floatingPaws"></div>
-
-        <aside class="sidebar">
-            <div class="logo">
-                <div class="logo-icon">🐾</div>
-                <span class="logo-text">VetCare</span>
-            </div>
-            <nav>
-                <ul class="nav-menu">
-                    <li class="nav-item"><a href="#" class="nav-link active" data-section="dashboard"><span class="nav-icon">🏠</span><span class="nav-text">Dashboard</span></a></li>
-                    <li class="nav-item"><a href="#" class="nav-link" data-section="clients"><span class="nav-icon">👥</span><span class="nav-text">Clientes</span></a></li>
-                    <li class="nav-item"><a href="#" class="nav-link" data-section="pets"><span class="nav-icon">🐕</span><span class="nav-text">Mascotas</span></a></li>
-                    <li class="nav-item"><a href="#" class="nav-link" data-section="history"><span class="nav-icon">📋</span><span class="nav-text">Historial</span></a></li>
-                    <li class="nav-item"><a href="#" class="nav-link" data-section="appointments"><span class="nav-icon">📅</span><span class="nav-text">Citas</span></a></li>
-                </ul>
-            </nav>
-            <div class="sidebar-footer">
-                <div class="user-info">
-                    <img id="userPhoto" src="" alt="Usuario" class="user-photo">
-                    <span id="userName" class="user-name"></span>
-                </div>
-                <button class="btn-logout" onclick="handleSignOut()">🚪 Salir</button>
-            </div>
-        </aside>
-
-        <main class="main-content">
-            <!-- DASHBOARD -->
-            <section class="section active" id="dashboard">
-                <header class="header">
-                    <div class="welcome-text">
-                        <h1>¡Bienvenido a VetCare! 🐾</h1>
-                        <p>Panel de administración veterinaria</p>
-                    </div>
-                    <div class="header-actions">
-                        <button class="btn btn-secondary" onclick="openModal('search')">🔍 Buscar</button>
-                        <button class="btn btn-primary" onclick="openModal('newClient')">➕ Nuevo Cliente</button>
-                    </div>
-                </header>
-
-                <div class="stats-grid">
-                    <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" id="totalClients">0</div><div class="stat-label">Clientes</div></div>
-                    <div class="stat-card"><div class="stat-icon">🐾</div><div class="stat-value" id="totalPets">0</div><div class="stat-label">Mascotas</div></div>
-                    <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-value" id="todayAppointments">0</div><div class="stat-label">Citas Hoy</div></div>
-                    <div class="stat-card"><div class="stat-icon">💉</div><div class="stat-value" id="monthlyVisits">0</div><div class="stat-label">Visitas Mes</div></div>
-                </div>
-
-                <div class="content-grid">
-                    <div class="panel">
-                        <div class="panel-header">
-                            <h2 class="panel-title">👥 Clientes Recientes</h2>
-                            <button class="btn btn-secondary btn-sm" onclick="openModal('newClient')">➕</button>
-                        </div>
-                        <table class="client-table">
-                            <thead><tr><th>Cliente</th><th>CI</th><th>Mascotas</th><th>Acciones</th></tr></thead>
-                            <tbody id="recentClientsTable"></tbody>
-                        </table>
-                    </div>
-                    <div class="panel">
-                        <div class="panel-header"><h2 class="panel-title">📅 Citas de Hoy</h2></div>
-                        <div class="appointment-list" id="todayAppointmentsList"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- CLIENTES -->
-            <section class="section" id="clients">
-                <header class="header">
-                    <div class="welcome-text"><h1>Gestión de Clientes 👥</h1><p>Administra tus clientes</p></div>
-                    <div class="header-actions"><button class="btn btn-primary" onclick="openModal('newClient')">➕ Nuevo Cliente</button></div>
-                </header>
-                <div class="panel">
-                    <div class="search-box"><span class="search-icon">🔍</span><input type="text" class="search-input" placeholder="Buscar por nombre, CI, teléfono..." id="clientSearch" oninput="filterClients()"></div>
-                    <table class="client-table">
-                        <thead><tr><th>Cliente</th><th>CI</th><th>Teléfono</th><th>Mascotas</th><th>Acciones</th></tr></thead>
-                        <tbody id="allClientsTable"></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- MASCOTAS -->
-            <section class="section" id="pets">
-                <header class="header">
-                    <div class="welcome-text"><h1>Mascotas 🐾</h1><p>Registro de mascotas</p></div>
-                    <div class="header-actions"><button class="btn btn-primary" onclick="openModal('newPet')">➕ Nueva Mascota</button></div>
-                </header>
-                <div class="panel">
-                    <div class="search-box"><span class="search-icon">🔍</span><input type="text" class="search-input" placeholder="Buscar mascota..." id="petSearch" oninput="filterPets()"></div>
-                    <table class="client-table">
-                        <thead><tr><th>Mascota</th><th>Tipo</th><th>Dueño</th><th>Edad</th><th>Acciones</th></tr></thead>
-                        <tbody id="allPetsTable"></tbody>
-                    </table>
-                </div>
-            </section>
-
-            <!-- HISTORIAL -->
-            <section class="section" id="history">
-                <header class="header">
-                    <div class="welcome-text"><h1>Historial Clínico 📋</h1><p>Consultas y tratamientos</p></div>
-                    <div class="header-actions"><button class="btn btn-primary" onclick="openModal('newHistory')">➕ Nueva Consulta</button></div>
-                </header>
-                <div class="panel">
-                    <div class="search-box"><span class="search-icon">🔍</span><input type="text" class="search-input" placeholder="Buscar en historial..." id="historySearch" oninput="filterHistory()"></div>
-                    <div class="history-list" id="historyList"></div>
-                </div>
-            </section>
-
-            <!-- CITAS -->
-            <section class="section" id="appointments">
-                <header class="header">
-                    <div class="welcome-text"><h1>Gestión de Citas 📅</h1><p>Programa y administra citas</p></div>
-                    <div class="header-actions"><button class="btn btn-primary" onclick="openModal('newAppointment')">➕ Nueva Cita</button></div>
-                </header>
-                <div class="content-grid">
-                    <div class="panel"><div class="panel-header"><h2 class="panel-title">📆 Próximas Citas</h2></div><div class="appointment-list" id="upcomingAppointments"></div></div>
-                    <div class="panel"><div class="panel-header"><h2 class="panel-title">✅ Completadas</h2></div><div class="appointment-list" id="completedAppointments"></div></div>
-                </div>
-            </section>
-        </main>
-    </div>
-
-    <!-- MODALES -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- IMPORTANTE: El orden de carga de scripts es CRÍTICO                     -->
+    <!-- 1. Primero config.js (configuración)                                    -->
+    <!-- 2. Luego script.js (define gapiLoaded y gisLoaded)                      -->
+    <!-- 3. Por último los scripts de Google (llaman a esas funciones)           -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
     
-    <!-- Modal: Nuevo Cliente -->
-    <div class="modal-overlay" id="modalNewClient">
-        <div class="modal">
-            <div class="modal-header"><h2 class="modal-title">🧑 Nuevo Cliente</h2><button class="close-btn" onclick="closeModal('newClient')">✕</button></div>
-            <form id="formNewClient" onsubmit="saveClient(event)">
-                <div class="form-row">
-                    <div class="form-group"><label class="form-label">Cédula *</label><input type="text" class="form-input" id="clientCedula" required></div>
-                    <div class="form-group"><label class="form-label">Nombre Completo *</label><input type="text" class="form-input" id="clientName" required></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label class="form-label">Teléfono WhatsApp *</label><input type="tel" class="form-input" id="clientPhone" placeholder="59170000000" required></div>
-                    <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="clientEmail"></div>
-                </div>
-                <div class="form-group"><label class="form-label">Dirección</label><input type="text" class="form-input" id="clientAddress"></div>
-                <button type="submit" class="btn btn-primary btn-block">💾 Guardar Cliente</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Nueva Mascota -->
-    <div class="modal-overlay" id="modalNewPet">
-        <div class="modal">
-            <div class="modal-header"><h2 class="modal-title">🐾 Nueva Mascota</h2><button class="close-btn" onclick="closeModal('newPet')">✕</button></div>
-            <form id="formNewPet" onsubmit="savePet(event)">
-                <div class="form-group">
-                    <label class="form-label">Tipo de Mascota</label>
-                    <div class="pet-selector">
-                        <div class="pet-option" data-type="dog" onclick="selectPetType('dog')"><div class="pet-option-icon">🐕</div><div class="pet-option-label">Perro</div></div>
-                        <div class="pet-option" data-type="cat" onclick="selectPetType('cat')"><div class="pet-option-icon">🐱</div><div class="pet-option-label">Gato</div></div>
-                        <div class="pet-option" data-type="bird" onclick="selectPetType('bird')"><div class="pet-option-icon">🐦</div><div class="pet-option-label">Ave</div></div>
-                        <div class="pet-option" data-type="rabbit" onclick="selectPetType('rabbit')"><div class="pet-option-icon">🐰</div><div class="pet-option-label">Conejo</div></div>
-                    </div>
-                    <input type="hidden" id="petType">
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label class="form-label">Nombre *</label><input type="text" class="form-input" id="petName" required></div>
-                    <div class="form-group"><label class="form-label">Raza</label><input type="text" class="form-input" id="petBreed"></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label class="form-label">Edad</label><input type="text" class="form-input" id="petAge" placeholder="3 años"></div>
-                    <div class="form-group"><label class="form-label">Peso (kg)</label><input type="number" class="form-input" id="petWeight" step="0.1"></div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">🔍 Buscar Dueño *</label>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" class="form-input" id="ownerSearch" placeholder="CI o nombre del dueño..." oninput="searchOwner(this.value)" autocomplete="off">
-                        <div class="autocomplete-list" id="ownerAutocomplete"></div>
-                    </div>
-                    <input type="hidden" id="petOwner">
-                </div>
-                <div class="owner-info-card" id="ownerInfoCard">
-                    <div class="owner-info-header">
-                        <div class="owner-info-avatar" id="ownerAvatar">J</div>
-                        <div><div class="owner-info-name" id="ownerInfoName"></div><span class="owner-info-badge">✓ Seleccionado</span></div>
-                    </div>
-                    <div class="owner-info-details">
-                        <div class="owner-info-item">📋 CI: <span id="ownerInfoCedula"></span></div>
-                        <div class="owner-info-item">📞 <span id="ownerInfoPhone"></span></div>
-                    </div>
-                </div>
-                <div id="newOwnerForm" style="display: none;">
-                    <div class="new-owner-alert"><p class="new-owner-alert-title">⚡ Cliente nuevo</p><p class="new-owner-alert-text">Complete los datos</p></div>
-                    <div class="form-row">
-                        <div class="form-group"><label class="form-label">Cédula *</label><input type="text" class="form-input" id="newOwnerCedula"></div>
-                        <div class="form-group"><label class="form-label">Nombre *</label><input type="text" class="form-input" id="newOwnerName"></div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group"><label class="form-label">Teléfono *</label><input type="tel" class="form-input" id="newOwnerPhone"></div>
-                        <div class="form-group"><label class="form-label">Email</label><input type="email" class="form-input" id="newOwnerEmail"></div>
-                    </div>
-                </div>
-                <div class="form-group"><label class="form-label">Notas</label><textarea class="form-input" id="petNotes" rows="2"></textarea></div>
-                <button type="submit" class="btn btn-primary btn-block">💾 Guardar Mascota</button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Nueva Cita -->
-    <div class="modal-overlay" id="modalNewAppointment">
-        <div class="modal">
-            <div class="modal-header"><h2 class="modal-title">📅 Nueva Cita</h2><button class="close-btn" onclick="closeModal('newAppointment')">✕</button></div>
-            <form id="formNewAppointment" onsubmit="saveAppointment(event)">
-                <div class="form-group">
-                    <label class="form-label">1️⃣ Buscar Cliente *</label>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" class="form-input" id="appointmentClientSearch" placeholder="CI o nombre..." oninput="searchClientForAppointment(this.value)" autocomplete="off">
-                        <div class="autocomplete-list" id="appointmentClientAutocomplete"></div>
-                    </div>
-                    <input type="hidden" id="appointmentClientId">
-                </div>
-                <div class="owner-info-card" id="appointmentClientCard">
-                    <div class="owner-info-header">
-                        <div class="owner-info-avatar" id="appointmentClientAvatar"></div>
-                        <div><div class="owner-info-name" id="appointmentClientName"></div><span class="owner-info-badge">✓ Cliente</span></div>
-                    </div>
-                    <div class="owner-info-details">
-                        <div class="owner-info-item">📋 CI: <span id="appointmentClientCedula"></span></div>
-                        <div class="owner-info-item">📞 <span id="appointmentClientPhone"></span></div>
-                    </div>
-                </div>
-                <div class="form-group" id="appointmentPetSelection" style="display: none;">
-                    <label class="form-label">2️⃣ Seleccionar Mascota *</label>
-                    <div class="pet-selection-grid" id="appointmentPetGrid"></div>
-                    <input type="hidden" id="appointmentPetId">
-                </div>
-                <div id="appointmentDetails" style="display: none;">
-                    <div class="form-row">
-                        <div class="form-group"><label class="form-label">3️⃣ Fecha</label><input type="date" class="form-input" id="appointmentDate" required></div>
-                        <div class="form-group"><label class="form-label">Hora</label><input type="time" class="form-input" id="appointmentTime" required></div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Tipo de Consulta</label>
-                        <select class="form-select" id="appointmentType" required>
-                            <option value="checkup">Revisión General</option>
-                            <option value="vaccine">Vacunación</option>
-                            <option value="surgery">Cirugía</option>
-                            <option value="grooming">Estética</option>
-                            <option value="emergency">Emergencia</option>
-                            <option value="dental">Dental</option>
-                        </select>
-                    </div>
-                    <div class="form-group"><label class="form-label">Notas</label><textarea class="form-input" id="appointmentNotes" rows="2"></textarea></div>
-                    <div class="whatsapp-notice"><p class="whatsapp-notice-title">📲 WhatsApp Automático</p><p class="whatsapp-notice-text">Se enviará recordatorio al guardar</p></div>
-                    <button type="submit" class="btn btn-primary btn-block">💾 Agendar y Enviar WhatsApp</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Nueva Consulta/Historial -->
-    <div class="modal-overlay" id="modalNewHistory">
-        <div class="modal modal-large">
-            <div class="modal-header"><h2 class="modal-title">📋 Nueva Consulta</h2><button class="close-btn" onclick="closeModal('newHistory')">✕</button></div>
-            <form id="formNewHistory" onsubmit="saveHistory(event)">
-                <div class="form-group">
-                    <label class="form-label">1️⃣ Buscar Cliente *</label>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" class="form-input" id="historyClientSearch" placeholder="CI o nombre..." oninput="searchClientForHistory(this.value)" autocomplete="off">
-                        <div class="autocomplete-list" id="historyClientAutocomplete"></div>
-                    </div>
-                    <input type="hidden" id="historyClientId">
-                </div>
-                <div class="owner-info-card" id="historyClientCard">
-                    <div class="owner-info-header">
-                        <div class="owner-info-avatar" id="historyClientAvatar"></div>
-                        <div><div class="owner-info-name" id="historyClientName"></div></div>
-                    </div>
-                </div>
-                <div class="form-group" id="historyPetSelection" style="display: none;">
-                    <label class="form-label">2️⃣ Seleccionar Mascota *</label>
-                    <div class="pet-selection-grid" id="historyPetGrid"></div>
-                    <input type="hidden" id="historyPetId">
-                </div>
-                <div id="historyDetails" style="display: none;">
-                    <div class="form-group">
-                        <label class="form-label">3️⃣ Tipo</label>
-                        <select class="form-select" id="historyType" required>
-                            <option value="checkup">Revisión General</option>
-                            <option value="vaccine">Vacunación</option>
-                            <option value="surgery">Cirugía</option>
-                            <option value="treatment">Tratamiento</option>
-                            <option value="emergency">Emergencia</option>
-                        </select>
-                    </div>
-                    <div class="form-group"><label class="form-label">Diagnóstico *</label><textarea class="form-input" id="historyDiagnosis" rows="3" required></textarea></div>
-                    <div class="form-group"><label class="form-label">Tratamiento</label><textarea class="form-input" id="historyTreatment" rows="2"></textarea></div>
-                    <div class="form-group"><label class="form-label">Medicamentos</label><input type="text" class="form-input" id="historyMeds"></div>
-                    <div class="form-group">
-                        <label class="form-label">📎 Adjuntar Archivos</label>
-                        <div class="file-upload-area" onclick="document.getElementById('historyFiles').click()">
-                            <div class="file-upload-icon">📁</div>
-                            <div class="file-upload-text">Click o arrastra archivos</div>
-                            <div class="file-upload-hint">Fotos, PDFs (máx. 10MB)</div>
-                        </div>
-                        <input type="file" id="historyFiles" multiple accept="image/*,.pdf" style="display:none" onchange="handleFileSelect(event)">
-                        <div class="file-list" id="fileList"></div>
-                    </div>
-                    <button type="submit" class="btn btn-primary btn-block">💾 Guardar Consulta</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Modal: Ver Historial -->
-    <div class="modal-overlay" id="modalViewHistory">
-        <div class="modal modal-large">
-            <div class="modal-header">
-                <h2 class="modal-title">📋 Historial Clínico</h2>
-                <div class="modal-header-actions">
-                    <button class="btn btn-print" onclick="printHistory()">🖨️ Imprimir</button>
-                    <button class="close-btn" onclick="closeModal('viewHistory')">✕</button>
-                </div>
-            </div>
-            <div id="viewHistoryContent"></div>
-        </div>
-    </div>
-
-    <!-- Modal: Búsqueda -->
-    <div class="modal-overlay" id="modalSearch">
-        <div class="modal">
-            <div class="modal-header"><h2 class="modal-title">🔍 Búsqueda</h2><button class="close-btn" onclick="closeModal('search')">✕</button></div>
-            <div class="search-box"><span class="search-icon">🔍</span><input type="text" class="search-input" placeholder="Buscar..." id="globalSearch" oninput="globalSearchFn()"></div>
-            <div id="searchResults"></div>
-        </div>
-    </div>
-
-    <!-- Toast -->
-    <div class="toast" id="toast"><span class="toast-icon">✅</span><span class="toast-message"></span></div>
-
-    <!-- Scripts de Google -->
-    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-    
-    <!-- Scripts de la App -->
     <script src="config.js"></script>
     <script src="script.js"></script>
+
+    <!-- Google APIs - DESPUÉS de script.js para que las funciones existan -->
+    <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+</head>
+
+<body>
+
+<!-- ==================== PANTALLA DE LOGIN ==================== -->
+<div id="loginScreen" class="login-screen">
+    <div class="login-container">
+        <div class="login-logo">🐾</div>
+        <h1 class="login-title">VetCare</h1>
+        <p class="login-subtitle">Sistema de Gestión Veterinaria</p>
+        
+        <button id="btnLogin" class="btn btn-google" onclick="handleGoogleAuth()">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Iniciar Sesión con Google
+        </button>
+        
+        <p class="login-note">Conecta con tu cuenta de Google autorizada</p>
+        <div id="loginError" class="login-error" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- ==================== PANTALLA DE CARGA ==================== -->
+<div id="loadingScreen" class="loading-screen" style="display: none;">
+    <div class="loading-container">
+        <div class="loading-spinner">🐾</div>
+        <p class="loading-text">Cargando datos...</p>
+    </div>
+</div>
+
+<!-- ==================== APLICACIÓN PRINCIPAL ==================== -->
+<div id="mainApp" style="display: none;">
+    
+    <div class="floating-paws" id="floatingPaws"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">🐾</div>
+            <span class="logo-text">VetCare</span>
+        </div>
+        
+        <nav>
+            <ul class="nav-menu">
+                <li class="nav-item">
+                    <a href="#" class="nav-link active" data-section="dashboard">
+                        <span class="nav-icon">🏠</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-section="clients">
+                        <span class="nav-icon">👥</span>
+                        <span class="nav-text">Clientes</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-section="pets">
+                        <span class="nav-icon">🐕</span>
+                        <span class="nav-text">Mascotas</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-section="history">
+                        <span class="nav-icon">📋</span>
+                        <span class="nav-text">Historial</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link" data-section="appointments">
+                        <span class="nav-icon">📅</span>
+                        <span class="nav-text">Citas</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <img id="userPhoto" src="" alt="Usuario" class="user-photo">
+                <span id="userName" class="user-name"></span>
+            </div>
+            <button class="btn-logout" onclick="logoutGoogle()">🚪 Salir</button>
+        </div>
+    </aside>
+
+    <!-- Contenido Principal -->
+    <main class="main-content">
+        
+        <!-- ==================== DASHBOARD ==================== -->
+        <section class="section active" id="dashboard">
+            <header class="header">
+                <div class="welcome-text">
+                    <h1>¡Bienvenido a VetCare! 🐾</h1>
+                    <p>Panel de administración veterinaria</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="openModal('search')">🔍 Buscar</button>
+                    <button class="btn btn-primary" onclick="openModal('newClient')">➕ Nuevo Cliente</button>
+                </div>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-value" id="totalClients">0</div>
+                    <div class="stat-label">Clientes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">🐾</div>
+                    <div class="stat-value" id="totalPets">0</div>
+                    <div class="stat-label">Mascotas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value" id="todayAppointments">0</div>
+                    <div class="stat-label">Citas Hoy</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">💉</div>
+                    <div class="stat-value" id="monthlyVisits">0</div>
+                    <div class="stat-label">Visitas Mes</div>
+                </div>
+            </div>
+
+            <div class="content-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">👥 Clientes Recientes</h2>
+                        <button class="btn btn-secondary btn-sm" onclick="openModal('newClient')">➕</button>
+                    </div>
+                    <table class="client-table">
+                        <thead>
+                            <tr>
+                                <th>Cliente</th>
+                                <th>CI</th>
+                                <th>Mascotas</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentClientsTable"></tbody>
+                    </table>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">📅 Citas de Hoy</h2>
+                    </div>
+                    <div class="appointment-list" id="todayAppointmentsList"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== CLIENTES ==================== -->
+        <section class="section" id="clients">
+            <header class="header">
+                <div class="welcome-text">
+                    <h1>Gestión de Clientes 👥</h1>
+                    <p>Administra tus clientes</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openModal('newClient')">➕ Nuevo Cliente</button>
+                </div>
+            </header>
+
+            <div class="panel">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" class="search-input" placeholder="Buscar por nombre, CI, teléfono..." id="clientSearch" oninput="filterClients()">
+                </div>
+                <table class="client-table">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>CI</th>
+                            <th>Teléfono</th>
+                            <th>Mascotas</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allClientsTable"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== MASCOTAS ==================== -->
+        <section class="section" id="pets">
+            <header class="header">
+                <div class="welcome-text">
+                    <h1>Mascotas 🐾</h1>
+                    <p>Registro de mascotas</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openModal('newPet')">➕ Nueva Mascota</button>
+                </div>
+            </header>
+
+            <div class="panel">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" class="search-input" placeholder="Buscar mascota..." id="petSearch" oninput="filterPets()">
+                </div>
+                <table class="client-table">
+                    <thead>
+                        <tr>
+                            <th>Mascota</th>
+                            <th>Tipo</th>
+                            <th>Dueño</th>
+                            <th>Edad</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allPetsTable"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ==================== HISTORIAL ==================== -->
+        <section class="section" id="history">
+            <header class="header">
+                <div class="welcome-text">
+                    <h1>Historial Clínico 📋</h1>
+                    <p>Consultas y tratamientos</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openModal('newHistory')">➕ Nueva Consulta</button>
+                </div>
+            </header>
+
+            <div class="panel">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" class="search-input" placeholder="Buscar en historial..." id="historySearch" oninput="filterHistory()">
+                </div>
+                <div class="history-list" id="historyList"></div>
+            </div>
+        </section>
+
+        <!-- ==================== CITAS ==================== -->
+        <section class="section" id="appointments">
+            <header class="header">
+                <div class="welcome-text">
+                    <h1>Gestión de Citas 📅</h1>
+                    <p>Programa y administra citas</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="openModal('newAppointment')">➕ Nueva Cita</button>
+                </div>
+            </header>
+
+            <div class="content-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">📆 Próximas Citas</h2>
+                    </div>
+                    <div class="appointment-list" id="upcomingAppointments"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">✅ Completadas Hoy</h2>
+                    </div>
+                    <div class="appointment-list" id="completedAppointments"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- ==================== MODALES ==================== -->
+
+<!-- Modal: Nuevo Cliente -->
+<div class="modal-overlay" id="modalNewClient">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">🧑 Nuevo Cliente</h2>
+            <button class="close-btn" onclick="closeModal('newClient')">✕</button>
+        </div>
+        <form id="formNewClient" onsubmit="saveClient(event)">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Cédula *</label>
+                    <input type="text" class="form-input" id="clientCedula" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Nombre Completo *</label>
+                    <input type="text" class="form-input" id="clientName" required>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Teléfono WhatsApp *</label>
+                    <input type="tel" class="form-input" id="clientPhone" placeholder="59170000000" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-input" id="clientEmail">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Dirección</label>
+                <input type="text" class="form-input" id="clientAddress">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">💾 Guardar Cliente</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Nueva Mascota -->
+<div class="modal-overlay" id="modalNewPet">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">🐾 Nueva Mascota</h2>
+            <button class="close-btn" onclick="closeModal('newPet')">✕</button>
+        </div>
+        <form id="formNewPet" onsubmit="savePet(event)">
+            <div class="form-group">
+                <label class="form-label">Tipo de Mascota</label>
+                <div class="pet-selector">
+                    <div class="pet-option" data-type="dog" onclick="selectPetType('dog')">
+                        <div class="pet-option-icon">🐕</div>
+                        <div class="pet-option-label">Perro</div>
+                    </div>
+                    <div class="pet-option" data-type="cat" onclick="selectPetType('cat')">
+                        <div class="pet-option-icon">🐱</div>
+                        <div class="pet-option-label">Gato</div>
+                    </div>
+                    <div class="pet-option" data-type="bird" onclick="selectPetType('bird')">
+                        <div class="pet-option-icon">🐦</div>
+                        <div class="pet-option-label">Ave</div>
+                    </div>
+                    <div class="pet-option" data-type="rabbit" onclick="selectPetType('rabbit')">
+                        <div class="pet-option-icon">🐰</div>
+                        <div class="pet-option-label">Conejo</div>
+                    </div>
+                </div>
+                <input type="hidden" id="petType">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Nombre *</label>
+                    <input type="text" class="form-input" id="petName" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Raza</label>
+                    <input type="text" class="form-input" id="petBreed">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Edad</label>
+                    <input type="text" class="form-input" id="petAge" placeholder="3 años">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Peso (kg)</label>
+                    <input type="number" class="form-input" id="petWeight" step="0.1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">🔍 Buscar Dueño *</label>
+                <div class="autocomplete-wrapper">
+                    <input type="text" class="form-input" id="ownerSearch" placeholder="CI o nombre del dueño..." oninput="searchOwner(this.value)" autocomplete="off">
+                    <div class="autocomplete-list" id="ownerAutocomplete"></div>
+                </div>
+                <input type="hidden" id="petOwner">
+            </div>
+            <div class="owner-info-card" id="ownerInfoCard">
+                <div class="owner-info-header">
+                    <div class="owner-info-avatar" id="ownerAvatar">J</div>
+                    <div>
+                        <div class="owner-info-name" id="ownerInfoName"></div>
+                        <span class="owner-info-badge">✓ Seleccionado</span>
+                    </div>
+                </div>
+                <div class="owner-info-details">
+                    <div class="owner-info-item">📋 CI: <span id="ownerInfoCedula"></span></div>
+                    <div class="owner-info-item">📞 <span id="ownerInfoPhone"></span></div>
+                </div>
+            </div>
+            <div id="newOwnerForm" style="display: none;">
+                <div class="new-owner-alert">
+                    <p class="new-owner-alert-title">⚡ Cliente nuevo</p>
+                    <p class="new-owner-alert-text">Complete los datos</p>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Cédula *</label>
+                        <input type="text" class="form-input" id="newOwnerCedula">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nombre *</label>
+                        <input type="text" class="form-input" id="newOwnerName">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Teléfono *</label>
+                        <input type="tel" class="form-input" id="newOwnerPhone">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-input" id="newOwnerEmail">
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notas</label>
+                <textarea class="form-input" id="petNotes" rows="2"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">💾 Guardar Mascota</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Nueva Cita -->
+<div class="modal-overlay" id="modalNewAppointment">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">📅 Nueva Cita</h2>
+            <button class="close-btn" onclick="closeModal('newAppointment')">✕</button>
+        </div>
+        <form id="formNewAppointment" onsubmit="saveAppointment(event)">
+            <div class="form-group">
+                <label class="form-label">1️⃣ Buscar Cliente *</label>
+                <div class="autocomplete-wrapper">
+                    <input type="text" class="form-input" id="appointmentClientSearch" placeholder="CI o nombre..." oninput="searchClientForAppointment(this.value)" autocomplete="off">
+                    <div class="autocomplete-list" id="appointmentClientAutocomplete"></div>
+                </div>
+                <input type="hidden" id="appointmentClientId">
+            </div>
+            <div class="owner-info-card" id="appointmentClientCard">
+                <div class="owner-info-header">
+                    <div class="owner-info-avatar" id="appointmentClientAvatar"></div>
+                    <div>
+                        <div class="owner-info-name" id="appointmentClientName"></div>
+                        <span class="owner-info-badge">✓ Cliente</span>
+                    </div>
+                </div>
+                <div class="owner-info-details">
+                    <div class="owner-info-item">📋 CI: <span id="appointmentClientCedula"></span></div>
+                    <div class="owner-info-item">📞 <span id="appointmentClientPhone"></span></div>
+                </div>
+            </div>
+            <div class="form-group" id="appointmentPetSelection" style="display: none;">
+                <label class="form-label">2️⃣ Seleccionar Mascota *</label>
+                <div class="pet-selection-grid" id="appointmentPetGrid"></div>
+                <input type="hidden" id="appointmentPetId">
+            </div>
+            <div id="appointmentDetails" style="display: none;">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">3️⃣ Fecha</label>
+                        <input type="date" class="form-input" id="appointmentDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Hora</label>
+                        <input type="time" class="form-input" id="appointmentTime" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo de Consulta</label>
+                    <select class="form-select" id="appointmentType" required>
+                        <option value="checkup">Revisión General</option>
+                        <option value="vaccine">Vacunación</option>
+                        <option value="surgery">Cirugía</option>
+                        <option value="grooming">Estética</option>
+                        <option value="emergency">Emergencia</option>
+                        <option value="dental">Dental</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notas</label>
+                    <textarea class="form-input" id="appointmentNotes" rows="2"></textarea>
+                </div>
+                <div class="whatsapp-notice">
+                    <p class="whatsapp-notice-title">📲 WhatsApp Automático</p>
+                    <p class="whatsapp-notice-text">Se enviará recordatorio al guardar</p>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">💾 Agendar y Enviar WhatsApp</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Nueva Consulta/Historial -->
+<div class="modal-overlay" id="modalNewHistory">
+    <div class="modal modal-large">
+        <div class="modal-header">
+            <h2 class="modal-title">📋 Nueva Consulta</h2>
+            <button class="close-btn" onclick="closeModal('newHistory')">✕</button>
+        </div>
+        <form id="formNewHistory" onsubmit="saveHistory(event)">
+            <div class="form-group">
+                <label class="form-label">1️⃣ Buscar Cliente *</label>
+                <div class="autocomplete-wrapper">
+                    <input type="text" class="form-input" id="historyClientSearch" placeholder="CI o nombre..." oninput="searchClientForHistory(this.value)" autocomplete="off">
+                    <div class="autocomplete-list" id="historyClientAutocomplete"></div>
+                </div>
+                <input type="hidden" id="historyClientId">
+            </div>
+            <div class="owner-info-card" id="historyClientCard">
+                <div class="owner-info-header">
+                    <div class="owner-info-avatar" id="historyClientAvatar"></div>
+                    <div>
+                        <div class="owner-info-name" id="historyClientName"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group" id="historyPetSelection" style="display: none;">
+                <label class="form-label">2️⃣ Seleccionar Mascota *</label>
+                <div class="pet-selection-grid" id="historyPetGrid"></div>
+                <input type="hidden" id="historyPetId">
+            </div>
+            <div id="historyDetails" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">3️⃣ Tipo</label>
+                    <select class="form-select" id="historyType" required>
+                        <option value="checkup">Revisión General</option>
+                        <option value="vaccine">Vacunación</option>
+                        <option value="surgery">Cirugía</option>
+                        <option value="treatment">Tratamiento</option>
+                        <option value="emergency">Emergencia</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Diagnóstico *</label>
+                    <textarea class="form-input" id="historyDiagnosis" rows="3" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tratamiento</label>
+                    <textarea class="form-input" id="historyTreatment" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Medicamentos</label>
+                    <input type="text" class="form-input" id="historyMeds">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">📎 Adjuntar Archivos</label>
+                    <div class="file-upload-area" onclick="document.getElementById('historyFiles').click()">
+                        <div class="file-upload-icon">📁</div>
+                        <div class="file-upload-text">Click o arrastra archivos</div>
+                        <div class="file-upload-hint">Fotos, PDFs (máx. 10MB)</div>
+                    </div>
+                    <input type="file" id="historyFiles" multiple accept="image/*,.pdf" style="display:none" onchange="handleFileSelect(event)">
+                    <div class="file-list" id="fileList"></div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">💾 Guardar Consulta</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal: Ver Historial -->
+<div class="modal-overlay" id="modalViewHistory">
+    <div class="modal modal-large">
+        <div class="modal-header">
+            <h2 class="modal-title">📋 Historial Clínico</h2>
+            <div class="modal-header-actions">
+                <button class="btn btn-print" onclick="printHistory()">🖨️ Imprimir</button>
+                <button class="close-btn" onclick="closeModal('viewHistory')">✕</button>
+            </div>
+        </div>
+        <div id="viewHistoryContent"></div>
+    </div>
+</div>
+
+<!-- Modal: Búsqueda -->
+<div class="modal-overlay" id="modalSearch">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">🔍 Búsqueda</h2>
+            <button class="close-btn" onclick="closeModal('search')">✕</button>
+        </div>
+        <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" placeholder="Buscar..." id="globalSearch" oninput="globalSearchFn()">
+        </div>
+        <div id="searchResults"></div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+    <span class="toast-icon">✅</span>
+    <span class="toast-message"></span>
+</div>
+
 </body>
 </html>
