@@ -842,7 +842,19 @@ function sendAppointmentReminder(appointmentId) {
     const client = clients.find(c => c.id === appt.clientId);
     if (!client) return;
 
-    const message = '🐾 *RECORDATORIO - VetCare*\n\nHola ' + client.name + '!\n\n📅 ' + formatDateLong(appt.date) + '\n🕐 ' + appt.time + '\n🐕 ' + (pet?.name || '') + '\n💉 ' + getTypeName(appt.type) + '\n\n¡Lo esperamos! 🏥';
+    const message = '═══════════════════\n' +
+        '🔔 RECORDATORIO - VetCare\n' +
+        '═══════════════════\n\n' +
+        'Hola ' + client.name + ' 👋\n\n' +
+        'Te recordamos que tienes una cita programada:\n\n' +
+        '📅 Fecha: ' + formatDateLong(appt.date) + '\n' +
+        '🕐 Hora: ' + appt.time + '\n' +
+        '🐶 Paciente: ' + (pet?.name || 'Tu mascota') + '\n' +
+        '🩺 Servicio: ' + getTypeName(appt.type) + '\n\n' +
+        '📍 Te esperamos en nuestra clinica.\n\n' +
+        '⚠️ Si necesitas reprogramar, contactanos con anticipacion.\n\n' +
+        'Gracias por tu preferencia 💚\n\n' +
+        '🏥 VetCare - Cuidamos a tu mejor amigo';
 
     sendWhatsApp(client.phone, message);
 }
@@ -1220,7 +1232,22 @@ async function saveAppointment(e) {
         
         appointments.push(newAppt);
         
-        var message = '🐾 *CITA AGENDADA - VetCare*\n\nHola ' + selectedAppointmentClient.name + '!\n\n📅 ' + formatDateLong(date) + '\n🕐 ' + time + '\n🐕 ' + selectedAppointmentPet.name + '\n💉 ' + getTypeName(type) + '\n\n¡Lo esperamos! 🏥';
+        var message = '═══════════════════\n' +
+            '🐾 CITA AGENDADA - VetCare\n' +
+            '═══════════════════\n\n' +
+            'Hola ' + selectedAppointmentClient.name + ' 👋\n\n' +
+            'Tu cita ha sido confirmada con exito ✅\n\n' +
+            '📅 Fecha: ' + formatDateLong(date) + '\n' +
+            '🕐 Hora: ' + time + '\n' +
+            '🐶 Paciente: ' + selectedAppointmentPet.name + '\n' +
+            '🩺 Servicio: ' + getTypeName(type) + '\n\n' +
+            '📍 Te esperamos en nuestra clinica.\n\n' +
+            '💡 Recuerda:\n' +
+            '• Llegar 10 min antes\n' +
+            '• Traer carnet de vacunas\n' +
+            '• Si no puedes asistir, avisanos\n\n' +
+            'Gracias por confiar en nosotros 💚\n\n' +
+            '🏥 VetCare - Cuidamos a tu mejor amigo';
 
         sendWhatsApp(selectedAppointmentClient.phone, message);
         
