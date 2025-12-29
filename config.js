@@ -13,7 +13,7 @@ const CONFIG = {
     API_KEY: 'AIzaSyAOhGTjJXHhuUhqf1g2DPCla59xNzftb-Q',
     
     // Carpeta de Drive para archivos (opcional)
-    DRIVE_FOLDER_ID: '',
+    DRIVE_FOLDER_ID: '1jw8mhMwtRwkHU3RIPasdcc3O_7-rnesH',
     
     // Nombres de las hojas en Google Sheets
     SHEETS: {
