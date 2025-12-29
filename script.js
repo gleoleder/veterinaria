@@ -462,44 +462,65 @@ async function loadAllDataFromSheets() {
 // ╚════════════════════════════════════════════════════════════════════════════╝
 
 async function uploadFileToDrive(file) {
-    const metadata = {
-        name: Date.now() + '_' + file.name,
-        mimeType: file.type
-    };
-    
-    if (CONFIG.DRIVE_FOLDER_ID) {
-        metadata.parents = [CONFIG.DRIVE_FOLDER_ID];
+    try {
+        const metadata = {
+            name: Date.now() + '_' + file.name,
+            mimeType: file.type
+        };
+        
+        // Solo agregar carpeta si está configurada
+        if (CONFIG.DRIVE_FOLDER_ID && CONFIG.DRIVE_FOLDER_ID.length > 10) {
+            metadata.parents = [CONFIG.DRIVE_FOLDER_ID];
+        }
+        
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', file);
+        
+        const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token },
+            body: form
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Error subiendo archivo:', errorData);
+            throw new Error('Error al subir archivo: ' + (errorData.error?.message || 'Error desconocido'));
+        }
+        
+        const data = await response.json();
+        
+        if (!data.id) {
+            throw new Error('No se obtuvo ID del archivo');
+        }
+        
+        // Intentar hacer público (pero no fallar si no se puede)
+        try {
+            await fetch('https://www.googleapis.com/drive/v3/files/' + data.id + '/permissions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + gapi.client.getToken().access_token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ role: 'reader', type: 'anyone' })
+            });
+        } catch (permError) {
+            console.warn('No se pudo hacer público el archivo:', permError);
+        }
+        
+        return {
+            id: data.id,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            url: data.webViewLink || 'https://drive.google.com/file/d/' + data.id + '/view'
+        };
+        
+    } catch (error) {
+        console.error('Error en uploadFileToDrive:', error);
+        throw error;
     }
-    
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', file);
-    
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
-        method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token },
-        body: form
-    });
-    
-    const data = await response.json();
-    
-    // Hacer público
-    await fetch('https://www.googleapis.com/drive/v3/files/' + data.id + '/permissions', {
-        method: 'POST',
-        headers: {
-            'Authorization': 'Bearer ' + gapi.client.getToken().access_token,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ role: 'reader', type: 'anyone' })
-    });
-    
-    return {
-        id: data.id,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        url: data.webViewLink || 'https://drive.google.com/file/d/' + data.id + '/view'
-    };
 }
 
 
@@ -1369,18 +1390,27 @@ async function saveHistory(e) {
     
     var diagnosis = document.getElementById('historyDiagnosis').value.trim();
     if (!diagnosis) {
-        showToast('Ingrese diagnóstico', 'warning');
+        showToast('Ingrese diagnostico', 'warning');
         return;
     }
     
     try {
         showToast('Guardando...', 'warning');
         
+        // Subir archivos si hay (opcional)
         var uploadedFiles = [];
-        for (var i = 0; i < selectedFiles.length; i++) {
-            showToast('Subiendo ' + selectedFiles[i].name + '...', 'warning');
-            var uploaded = await uploadFileToDrive(selectedFiles[i]);
-            uploadedFiles.push(uploaded);
+        if (selectedFiles.length > 0) {
+            for (var i = 0; i < selectedFiles.length; i++) {
+                try {
+                    showToast('Subiendo ' + selectedFiles[i].name + '...', 'warning');
+                    var uploaded = await uploadFileToDrive(selectedFiles[i]);
+                    uploadedFiles.push(uploaded);
+                } catch (uploadError) {
+                    console.error('Error subiendo archivo:', uploadError);
+                    showToast('Error subiendo ' + selectedFiles[i].name, 'error');
+                    // Continuar sin el archivo
+                }
+            }
         }
         
         var newHistory = {
@@ -1395,15 +1425,41 @@ async function saveHistory(e) {
             attachments: uploadedFiles
         };
         
+        // Guardar en hoja Historial
         await appendToSheet(SHEETS.HISTORIAL, [
-            newHistory.id, newHistory.petId, newHistory.clientId, newHistory.date, newHistory.type, diagnosis, newHistory.treatment, newHistory.meds, '', new Date().toISOString()
+            newHistory.id, 
+            newHistory.petId, 
+            newHistory.clientId, 
+            newHistory.date, 
+            newHistory.type, 
+            diagnosis, 
+            newHistory.treatment, 
+            newHistory.meds, 
+            '', 
+            new Date().toISOString()
         ]);
         
-        for (var j = 0; j < uploadedFiles.length; j++) {
-            var file = uploadedFiles[j];
-            await appendToSheet(SHEETS.ARCHIVOS, [
-                Date.now() + j, newHistory.id, newHistory.petId, newHistory.clientId, file.name, file.type, Math.round(file.size / 1024), file.url, new Date().toISOString()
-            ]);
+        // Guardar archivos en hoja Archivos (si hay)
+        if (uploadedFiles.length > 0) {
+            for (var j = 0; j < uploadedFiles.length; j++) {
+                var file = uploadedFiles[j];
+                try {
+                    await appendToSheet(SHEETS.ARCHIVOS, [
+                        Date.now() + j, 
+                        newHistory.id, 
+                        newHistory.petId, 
+                        newHistory.clientId, 
+                        file.name, 
+                        file.type, 
+                        Math.round(file.size / 1024), 
+                        file.url, 
+                        new Date().toISOString()
+                    ]);
+                } catch (archiveError) {
+                    console.error('Error guardando archivo en hoja:', archiveError);
+                    // La hoja Archivos puede no existir, no es crítico
+                }
+            }
         }
         
         history.push(newHistory);
@@ -1413,8 +1469,8 @@ async function saveHistory(e) {
         showToast('Consulta guardada', 'success');
         
     } catch (error) {
-        console.error(error);
-        showToast('Error al guardar', 'error');
+        console.error('Error guardando historial:', error);
+        showToast('Error: ' + (error.message || 'al guardar'), 'error');
     }
 }
 
