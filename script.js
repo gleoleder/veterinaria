@@ -1,16 +1,48 @@
-/* ══════════════════════════════════════════════════════════════════════
-   VetCare - Sistema de Gestión Veterinaria
-   Conectado a Google Sheets
-   ══════════════════════════════════════════════════════════════════════ */
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                      SISTEMA VETCARE - script.js                             ║
+// ║                         Versión 2.0                                          ║
+// ║                                                                              ║
+// ║  Sistema de Gestión Veterinaria con integración a Google Sheets             ║
+// ║  Basado en el patrón de autenticación del Sistema POS Mindy's               ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
 
-// ══════════════════════════════════════════════════════════════════════
-// VARIABLES GLOBALES
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 1: CONFIGURACIÓN DE GOOGLE API                   ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+const CLIENT_ID = CONFIG.CLIENT_ID;
+const API_KEY = CONFIG.API_KEY;
+const SPREADSHEET_ID = CONFIG.GOOGLE_SHEET_ID;
+const SHEETS = CONFIG.SHEETS;
+
+const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+
+const SCOPES =
+    'https://www.googleapis.com/auth/spreadsheets ' +
+    'https://www.googleapis.com/auth/drive.file ' +
+    'https://www.googleapis.com/auth/userinfo.profile ' +
+    'https://www.googleapis.com/auth/userinfo.email';
+
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 2: VARIABLES DE ESTADO                           ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
+let usuarioGoogle = false;
+let emailUsuario = '';
+let nombreUsuario = '';
+
+// Datos de la aplicación
 let clients = [];
 let pets = [];
 let appointments = [];
 let history = [];
 
+// Estado de formularios
 let selectedOwner = null;
 let isNewOwner = false;
 let selectedFiles = [];
@@ -20,207 +52,229 @@ let selectedHistoryClient = null;
 let selectedHistoryPet = null;
 let selectedPetType = null;
 
-let tokenClient;
-let gapiInited = false;
-let gisInited = false;
+// Clave para guardar el token (igual que el sistema POS)
+const TOKEN_STORAGE_KEY = 'vetcare_google_token';
 
-// ══════════════════════════════════════════════════════════════════════
-// CONFIGURACIÓN GOOGLE API
-// ══════════════════════════════════════════════════════════════════════
-const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
-const SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
 
-// ══════════════════════════════════════════════════════════════════════
-// INICIALIZACIÓN GOOGLE API
-// ══════════════════════════════════════════════════════════════════════
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 3: INICIALIZACIÓN DE GOOGLE API                  ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+/**
+ * Callback cuando GAPI se carga
+ */
 function gapiLoaded() {
-    console.log('GAPI cargado');
+    console.log('📦 GAPI cargado');
     gapi.load('client', initializeGapiClient);
 }
 
+/**
+ * Inicializa el cliente de Google API
+ */
 async function initializeGapiClient() {
     try {
-        console.log('Inicializando GAPI client...');
-        console.log('API_KEY:', CONFIG.API_KEY ? 'Configurada' : 'NO CONFIGURADA');
-        
         await gapi.client.init({
-            apiKey: CONFIG.API_KEY,
-            discoveryDocs: [DISCOVERY_DOC],
+            apiKey: API_KEY,
+            discoveryDocs: [DISCOVERY_DOC]
         });
-        
-        console.log('GAPI inicializado correctamente');
         gapiInited = true;
-        maybeEnableButtons();
-        
-    } catch (error) {
-        console.error('Error inicializando GAPI:', error);
-        
-        let errorMsg = 'Error al conectar con Google API';
-        if (error.error) {
-            errorMsg += ': ' + (error.error.message || error.error);
-        }
-        
-        showLoginError(errorMsg);
+        console.log('✅ Google API inicializada');
+        checkReady();
+    } catch (e) {
+        console.error('❌ Error GAPI:', e);
+        showLoginError('Error al inicializar Google API: ' + (e.message || e));
     }
 }
 
+/**
+ * Callback cuando Google Identity Services se carga
+ */
 function gisLoaded() {
-    console.log('GIS cargado');
-    console.log('CLIENT_ID:', CONFIG.CLIENT_ID ? 'Configurado' : 'NO CONFIGURADO');
-    
-    try {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CONFIG.CLIENT_ID,
-            scope: SCOPES,
-            callback: '',
-        });
-        
-        console.log('Token client creado');
-        gisInited = true;
-        maybeEnableButtons();
-        
-    } catch (error) {
-        console.error('Error inicializando GIS:', error);
-        showLoginError('Error al inicializar autenticación Google');
-    }
+    console.log('📦 GIS cargado');
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: handleTokenResponse  // Callback directo como en el sistema POS
+    });
+    gisInited = true;
+    console.log('✅ Google Identity Services cargado');
+    checkReady();
 }
 
-function maybeEnableButtons() {
-    console.log('Estado - GAPI:', gapiInited, 'GIS:', gisInited);
-    
+/**
+ * Verifica si GAPI y GIS están listos
+ */
+function checkReady() {
     if (gapiInited && gisInited) {
-        const btn = document.getElementById('btnLogin');
-        if (btn) btn.disabled = false;
+        console.log('🐾 Sistema VetCare listo');
         
-        // Ocultar error si existe
-        const errorDiv = document.getElementById('loginError');
-        if (errorDiv) errorDiv.style.display = 'none';
-        
-        // Verificar token guardado
-        const savedToken = localStorage.getItem('vetcare_google_token');
+        // Intentar restaurar sesión guardada
+        const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
         if (savedToken) {
-            try {
-                const tokenData = JSON.parse(savedToken);
-                if (tokenData.expires_at && tokenData.expires_at > Date.now()) {
-                    console.log('Token válido encontrado, iniciando sesión automática...');
-                    gapi.client.setToken(tokenData);
-                    onSignInSuccess();
-                } else {
-                    console.log('Token expirado, eliminando...');
-                    localStorage.removeItem('vetcare_google_token');
-                }
-            } catch (e) {
-                console.log('Error parseando token guardado');
-                localStorage.removeItem('vetcare_google_token');
-            }
+            console.log('🔑 Token guardado encontrado, verificando...');
+            gapi.client.setToken({ access_token: savedToken });
+            verificarToken();
+        } else {
+            console.log('⚠️ No hay token guardado');
+            // Mostrar pantalla de login
         }
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// AUTENTICACIÓN
-// ══════════════════════════════════════════════════════════════════════
-function handleAuthClick() {
-    console.log('Iniciando autenticación...');
-    
-    tokenClient.callback = async (resp) => {
-        if (resp.error !== undefined) {
-            console.error('Error de autenticación:', resp);
-            showLoginError('Error al iniciar sesión: ' + (resp.error_description || resp.error));
-            return;
-        }
-        
-        console.log('Autenticación exitosa');
-        
-        // Guardar token
-        const token = gapi.client.getToken();
-        token.expires_at = Date.now() + (token.expires_in * 1000);
-        localStorage.setItem('vetcare_google_token', JSON.stringify(token));
-        
-        onSignInSuccess();
-    };
 
-    if (gapi.client.getToken() === null) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 4: AUTENTICACIÓN CON GOOGLE                      ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+/**
+ * Maneja el click en el botón de conectar/desconectar
+ */
+function handleGoogleAuth() {
+    if (!gapiInited || !gisInited) {
+        showToast('Esperando Google API...', 'warning');
+        return;
+    }
+    
+    if (usuarioGoogle) {
+        logoutGoogle();
     } else {
-        tokenClient.requestAccessToken({ prompt: '' });
+        // Solicitar token mostrando popup de Google
+        tokenClient.requestAccessToken({ prompt: 'consent' });
     }
 }
 
-function handleSignOut() {
-    const token = gapi.client.getToken();
-    if (token !== null) {
-        google.accounts.oauth2.revoke(token.access_token);
-        gapi.client.setToken('');
+/**
+ * Callback cuando Google devuelve un token
+ */
+function handleTokenResponse(resp) {
+    if (resp.error) {
+        console.error('❌ Error auth:', resp);
+        showLoginError('Error de autenticación: ' + (resp.error_description || resp.error));
+        return;
     }
-    localStorage.removeItem('vetcare_google_token');
     
-    document.getElementById('mainApp').style.display = 'none';
-    document.getElementById('loginScreen').style.display = 'flex';
+    console.log('✅ Token recibido');
     
+    // Guardar token
+    gapi.client.setToken(resp);
+    localStorage.setItem(TOKEN_STORAGE_KEY, resp.access_token);
+    
+    // Cargar datos del usuario y la aplicación
+    cargarDatosUsuarioYApp();
+}
+
+/**
+ * Cierra la sesión de Google
+ */
+function logoutGoogle() {
+    const token = gapi.client.getToken();
+    if (token) {
+        google.accounts.oauth2.revoke(token.access_token);
+    }
+    
+    gapi.client.setToken('');
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    
+    usuarioGoogle = false;
+    emailUsuario = '';
+    nombreUsuario = '';
     clients = [];
     pets = [];
     appointments = [];
     history = [];
+    
+    // Mostrar pantalla de login
+    document.getElementById('loginScreen').style.display = 'flex';
+    document.getElementById('mainApp').style.display = 'none';
+    
+    showToast('Sesión cerrada', 'warning');
 }
 
-async function onSignInSuccess() {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('loadingScreen').style.display = 'flex';
-    
+/**
+ * Verifica si el token guardado sigue siendo válido
+ */
+async function verificarToken() {
     try {
-        // Info del usuario
-        const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-            headers: { 'Authorization': `Bearer ${gapi.client.getToken().access_token}` }
-        }).then(r => r.json());
+        // Intentar una llamada simple para verificar el token
+        await gapi.client.sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+        console.log('✅ Token válido');
+        cargarDatosUsuarioYApp();
+    } catch (e) {
+        console.log('⚠️ Token expirado o inválido');
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+        // Token inválido, el usuario debe volver a conectar
+    }
+}
+
+/**
+ * Carga los datos del usuario y luego los datos de la aplicación
+ */
+async function cargarDatosUsuarioYApp() {
+    try {
+        // Mostrar pantalla de carga
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('loadingScreen').style.display = 'flex';
         
-        document.getElementById('userPhoto').src = userInfo.picture || '';
-        document.getElementById('userName').textContent = userInfo.name || userInfo.email;
+        // Obtener info del usuario
+        const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: 'Bearer ' + gapi.client.getToken().access_token }
+        });
+        const userData = await userRes.json();
         
-        // Cargar datos
+        emailUsuario = userData.email || '';
+        nombreUsuario = userData.name || userData.email || 'Usuario';
+        usuarioGoogle = true;
+        
+        console.log('👤 Usuario:', nombreUsuario, emailUsuario);
+        
+        // Actualizar UI con datos del usuario
+        const userPhoto = document.getElementById('userPhoto');
+        const userName = document.getElementById('userName');
+        if (userPhoto) userPhoto.src = userData.picture || '';
+        if (userName) userName.textContent = nombreUsuario;
+        
+        // Cargar datos desde Google Sheets
         await loadAllDataFromSheets();
         
+        // Ocultar carga, mostrar app
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('mainApp').style.display = 'block';
         
+        // Inicializar UI
         initNavigation();
         createFloatingPaws();
         renderAll();
         
-        showToast('✅ Sesión iniciada');
+        showToast('¡Bienvenido ' + nombreUsuario + '!', 'success');
         
-    } catch (error) {
-        console.error('Error cargando datos:', error);
+    } catch (e) {
+        console.error('Error cargando datos:', e);
         document.getElementById('loadingScreen').style.display = 'none';
         document.getElementById('loginScreen').style.display = 'flex';
-        showLoginError('Error al cargar datos: ' + (error.message || error));
+        showLoginError('Error al cargar datos: ' + (e.message || e));
     }
 }
 
-function showLoginError(message) {
-    const errorDiv = document.getElementById('loginError');
-    if (errorDiv) {
-        errorDiv.textContent = message;
-        errorDiv.style.display = 'block';
-    }
-    console.error('Login Error:', message);
-}
 
-// ══════════════════════════════════════════════════════════════════════
-// GOOGLE SHEETS - LECTURA
-// ══════════════════════════════════════════════════════════════════════
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 5: FUNCIONES DE GOOGLE SHEETS                    ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+/**
+ * Lee datos de una hoja de Google Sheets
+ */
 async function readSheet(sheetName) {
     try {
-        console.log('Leyendo hoja:', sheetName);
+        console.log('📖 Leyendo hoja:', sheetName);
         
         const response = await gapi.client.sheets.spreadsheets.values.get({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: `${sheetName}!A:Z`,
+            spreadsheetId: SPREADSHEET_ID,
+            range: sheetName + '!A:Z'
         });
         
         const values = response.result.values;
         if (!values || values.length < 2) {
-            console.log(`Hoja ${sheetName} vacía o solo encabezados`);
+            console.log(`Hoja ${sheetName} vacía`);
             return [];
         }
         
@@ -233,69 +287,65 @@ async function readSheet(sheetName) {
             return obj;
         });
         
-        console.log(`Hoja ${sheetName}: ${data.length} registros`);
+        console.log(`✅ ${sheetName}: ${data.length} registros`);
         return data;
         
     } catch (error) {
         console.error(`Error leyendo ${sheetName}:`, error);
-        // Si la hoja no existe, devolver array vacío en lugar de fallar
-        if (error.result?.error?.status === 'NOT_FOUND' || 
-            error.result?.error?.message?.includes('Unable to parse range')) {
-            console.log(`Hoja ${sheetName} no encontrada, retornando vacío`);
-            return [];
-        }
-        throw error;
+        return [];
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// GOOGLE SHEETS - ESCRITURA
-// ══════════════════════════════════════════════════════════════════════
+/**
+ * Agrega una fila a una hoja
+ */
 async function appendToSheet(sheetName, values) {
     try {
-        console.log('Escribiendo en:', sheetName);
-        
         await gapi.client.sheets.spreadsheets.values.append({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: `${sheetName}!A:Z`,
-            valueInputOption: 'USER_ENTERED',
+            spreadsheetId: SPREADSHEET_ID,
+            range: sheetName + '!A:Z',
+            valueInputOption: 'RAW',
             insertDataOption: 'INSERT_ROWS',
             resource: { values: [values] }
         });
-        
-        console.log('Escrito exitosamente');
-        
+        console.log('✅ Datos guardados en', sheetName);
     } catch (error) {
-        console.error(`Error escribiendo en ${sheetName}:`, error);
+        console.error('Error escribiendo en', sheetName, error);
         throw error;
     }
 }
 
+/**
+ * Actualiza una fila específica
+ */
 async function updateSheetRow(sheetName, rowIndex, values) {
     try {
         await gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
-            range: `${sheetName}!A${rowIndex}:Z${rowIndex}`,
-            valueInputOption: 'USER_ENTERED',
+            spreadsheetId: SPREADSHEET_ID,
+            range: sheetName + '!A' + rowIndex + ':Z' + rowIndex,
+            valueInputOption: 'RAW',
             resource: { values: [values] }
         });
     } catch (error) {
-        console.error(`Error actualizando ${sheetName}:`, error);
+        console.error('Error actualizando', sheetName, error);
         throw error;
     }
 }
 
+/**
+ * Elimina una fila
+ */
 async function deleteSheetRow(sheetName, rowIndex) {
     try {
-        const sheetsResponse = await gapi.client.sheets.spreadsheets.get({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID
+        const sheetsInfo = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: SPREADSHEET_ID
         });
         
-        const sheet = sheetsResponse.result.sheets.find(s => s.properties.title === sheetName);
+        const sheet = sheetsInfo.result.sheets.find(s => s.properties.title === sheetName);
         if (!sheet) throw new Error('Hoja no encontrada');
         
         await gapi.client.sheets.spreadsheets.batchUpdate({
-            spreadsheetId: CONFIG.GOOGLE_SHEET_ID,
+            spreadsheetId: SPREADSHEET_ID,
             resource: {
                 requests: [{
                     deleteDimension: {
@@ -310,19 +360,21 @@ async function deleteSheetRow(sheetName, rowIndex) {
             }
         });
     } catch (error) {
-        console.error(`Error eliminando fila en ${sheetName}:`, error);
+        console.error('Error eliminando fila:', error);
         throw error;
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// CARGAR DATOS
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 6: CARGAR DATOS                                  ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 async function loadAllDataFromSheets() {
-    console.log('Cargando datos desde Google Sheets...');
+    console.log('📥 Cargando datos desde Google Sheets...');
     
     // Clientes
-    const clientsData = await readSheet(CONFIG.SHEETS.CLIENTES);
+    const clientsData = await readSheet(SHEETS.CLIENTES);
     clients = clientsData.map(c => ({
         id: parseInt(c.id) || Date.now(),
         cedula: c.cedula || '',
@@ -335,7 +387,7 @@ async function loadAllDataFromSheets() {
     }));
     
     // Mascotas
-    const petsData = await readSheet(CONFIG.SHEETS.MASCOTAS);
+    const petsData = await readSheet(SHEETS.MASCOTAS);
     pets = petsData.map(p => ({
         id: parseInt(p.id) || Date.now(),
         name: p.nombre || '',
@@ -350,7 +402,7 @@ async function loadAllDataFromSheets() {
     }));
     
     // Citas
-    const appointmentsData = await readSheet(CONFIG.SHEETS.CITAS);
+    const appointmentsData = await readSheet(SHEETS.CITAS);
     appointments = appointmentsData.map(a => ({
         id: parseInt(a.id) || Date.now(),
         petId: parseInt(a.mascotaid) || 0,
@@ -364,7 +416,7 @@ async function loadAllDataFromSheets() {
     }));
     
     // Historial
-    const historyData = await readSheet(CONFIG.SHEETS.HISTORIAL);
+    const historyData = await readSheet(SHEETS.HISTORIAL);
     history = historyData.map(h => ({
         id: parseInt(h.id) || Date.now(),
         petId: parseInt(h.mascotaid) || 0,
@@ -378,14 +430,14 @@ async function loadAllDataFromSheets() {
         _rowIndex: h._rowIndex
     }));
     
-    // Archivos
+    // Archivos adjuntos
     try {
-        const attachmentsData = await readSheet(CONFIG.SHEETS.ARCHIVOS);
+        const attachmentsData = await readSheet(SHEETS.ARCHIVOS);
         attachmentsData.forEach(a => {
-            const historyItem = history.find(h => h.id === parseInt(a.historialid));
-            if (historyItem) {
-                if (!historyItem.attachments) historyItem.attachments = [];
-                historyItem.attachments.push({
+            const histItem = history.find(h => h.id === parseInt(a.historialid));
+            if (histItem) {
+                if (!histItem.attachments) histItem.attachments = [];
+                histItem.attachments.push({
                     name: a.nombrearchivo || '',
                     type: a.tipoarchivo || '',
                     url: a.urldrive || ''
@@ -396,7 +448,7 @@ async function loadAllDataFromSheets() {
         console.log('Hoja Archivos no disponible');
     }
     
-    console.log('Datos cargados:', {
+    console.log('✅ Datos cargados:', {
         clientes: clients.length,
         mascotas: pets.length,
         citas: appointments.length,
@@ -404,12 +456,14 @@ async function loadAllDataFromSheets() {
     });
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// GOOGLE DRIVE - SUBIR ARCHIVOS
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 7: GOOGLE DRIVE - SUBIR ARCHIVOS                 ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 async function uploadFileToDrive(file) {
     const metadata = {
-        name: `${Date.now()}_${file.name}`,
+        name: Date.now() + '_' + file.name,
         mimeType: file.type
     };
     
@@ -423,17 +477,17 @@ async function uploadFileToDrive(file) {
     
     const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${gapi.client.getToken().access_token}` },
+        headers: { 'Authorization': 'Bearer ' + gapi.client.getToken().access_token },
         body: form
     });
     
     const data = await response.json();
     
     // Hacer público
-    await fetch(`https://www.googleapis.com/drive/v3/files/${data.id}/permissions`, {
+    await fetch('https://www.googleapis.com/drive/v3/files/' + data.id + '/permissions', {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${gapi.client.getToken().access_token}`,
+            'Authorization': 'Bearer ' + gapi.client.getToken().access_token,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({ role: 'reader', type: 'anyone' })
@@ -444,13 +498,15 @@ async function uploadFileToDrive(file) {
         name: file.name,
         type: file.type,
         size: file.size,
-        url: data.webViewLink || `https://drive.google.com/file/d/${data.id}/view`
+        url: data.webViewLink || 'https://drive.google.com/file/d/' + data.id + '/view'
     };
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// FUNCIONES AUXILIARES
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 8: FUNCIONES AUXILIARES                          ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function getPetIcon(type) {
     return { dog: '🐕', cat: '🐱', bird: '🐦', rabbit: '🐰' }[type] || '🐾';
 }
@@ -485,9 +541,33 @@ function getTodayDate() {
     return new Date().toISOString().split('T')[0];
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// NAVEGACIÓN
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 9: INTERFAZ DE USUARIO                           ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
+function showLoginError(message) {
+    const errorDiv = document.getElementById('loginError');
+    if (errorDiv) {
+        errorDiv.textContent = message;
+        errorDiv.style.display = 'block';
+    }
+    console.error('Login Error:', message);
+}
+
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    
+    const msgEl = toast.querySelector('.toast-message');
+    if (msgEl) msgEl.textContent = message;
+    
+    toast.className = 'toast ' + type;
+    toast.classList.add('show');
+    
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
 function initNavigation() {
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
@@ -516,9 +596,11 @@ function createFloatingPaws() {
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// ESTADÍSTICAS
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 10: ESTADÍSTICAS                                 ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function updateStats() {
     document.getElementById('totalClients').textContent = clients.length;
     document.getElementById('totalPets').textContent = pets.length;
@@ -530,9 +612,11 @@ function updateStats() {
     document.getElementById('monthlyVisits').textContent = history.filter(h => h.date && h.date.startsWith(thisMonth)).length;
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// RENDERIZADO
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 11: RENDERIZADO                                  ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function renderRecentClients() {
     const table = document.getElementById('recentClientsTable');
     if (!table) return;
@@ -550,7 +634,7 @@ function renderRecentClients() {
                 <div><div class="client-name">${client.name}</div><div class="client-email">${client.email || ''}</div></div>
             </div></td>
             <td><span class="ci-badge">CI: ${client.cedula}</span></td>
-            <td>${clientPets.map(p => `<span class="pet-badge ${p.type}">${getPetIcon(p.type)} ${p.name}</span>`).join('') || '-'}</td>
+            <td>${clientPets.map(p => '<span class="pet-badge ' + p.type + '">' + getPetIcon(p.type) + ' ' + p.name + '</span>').join('') || '-'}</td>
             <td>
                 <button class="action-btn" onclick="sendWhatsApp('${client.phone}', 'Hola ${client.name}!')">📲</button>
                 <button class="action-btn" onclick="deleteClient(${client.id}, ${client._rowIndex})">🗑️</button>
@@ -559,7 +643,7 @@ function renderRecentClients() {
     }).join('');
 }
 
-function renderAllClients(filtered = null) {
+function renderAllClients(filtered) {
     const table = document.getElementById('allClientsTable');
     if (!table) return;
     
@@ -579,7 +663,7 @@ function renderAllClients(filtered = null) {
             </div></td>
             <td><span class="ci-badge">CI: ${client.cedula}</span></td>
             <td>${client.phone}</td>
-            <td>${clientPets.map(p => `<span class="pet-badge ${p.type}">${getPetIcon(p.type)} ${p.name}</span>`).join('') || '-'}</td>
+            <td>${clientPets.map(p => '<span class="pet-badge ' + p.type + '">' + getPetIcon(p.type) + ' ' + p.name + '</span>').join('') || '-'}</td>
             <td>
                 <button class="action-btn" onclick="sendWhatsApp('${client.phone}', 'Hola ${client.name}!')">📲</button>
                 <button class="action-btn" onclick="deleteClient(${client.id}, ${client._rowIndex})">🗑️</button>
@@ -588,7 +672,7 @@ function renderAllClients(filtered = null) {
     }).join('');
 }
 
-function renderAllPets(filtered = null) {
+function renderAllPets(filtered) {
     const table = document.getElementById('allPetsTable');
     if (!table) return;
     
@@ -632,11 +716,11 @@ function renderTodayAppointments() {
     container.innerHTML = todayAppts.map(appt => {
         const pet = pets.find(p => p.id === appt.petId);
         const client = clients.find(c => c.id === appt.clientId);
-        const [h, m] = (appt.time || '00:00').split(':');
-        const hour = parseInt(h) || 0;
+        const parts = (appt.time || '00:00').split(':');
+        const hour = parseInt(parts[0]) || 0;
         return `<div class="appointment-card" onclick="completeAppointment(${appt.id}, ${appt._rowIndex})">
             <div class="appointment-time">
-                <div class="time">${hour > 12 ? hour - 12 : hour}:${m}</div>
+                <div class="time">${hour > 12 ? hour - 12 : hour}:${parts[1] || '00'}</div>
                 <div class="period">${hour >= 12 ? 'PM' : 'AM'}</div>
             </div>
             <div class="appointment-details">
@@ -656,7 +740,7 @@ function renderUpcomingAppointments() {
     const upcoming = appointments.filter(a => a.date >= today && !a.completed).sort((a, b) => a.date !== b.date ? a.date.localeCompare(b.date) : (a.time || '').localeCompare(b.time || ''));
     
     if (upcoming.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><p>No hay citas próximas</p></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><p>No hay citas</p></div>';
         return;
     }
     
@@ -701,7 +785,7 @@ function renderCompletedAppointments() {
     }).join('');
 }
 
-function renderHistory(filtered = null) {
+function renderHistory(filtered) {
     const container = document.getElementById('historyList');
     if (!container) return;
     
@@ -729,23 +813,25 @@ function renderHistory(filtered = null) {
                 <div class="history-title">${getTypeIcon(item.type)} ${getTypeName(item.type)}</div>
                 <div class="history-desc">${item.diagnosis || ''}</div>
                 <div class="history-pet">${getPetIcon(pet?.type)} ${pet?.name || ''} ${owner ? '• ' + owner.name : ''}</div>
-                ${attachments.length > 0 ? `<div class="history-attachments">${attachments.map(a => `<a href="${a.url}" target="_blank" class="attachment-badge">📎 ${a.name}</a>`).join('')}</div>` : ''}
+                ${attachments.length > 0 ? '<div class="history-attachments">' + attachments.map(a => '<a href="' + a.url + '" target="_blank" class="attachment-badge">📎 ' + a.name + '</a>').join('') + '</div>' : ''}
             </div>
             <button class="action-btn" onclick="viewPetHistory(${item.petId})">📋</button>
         </div>`;
     }).join('');
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// WHATSAPP
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 12: WHATSAPP                                     ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function sendWhatsApp(phone, message) {
     const cleanPhone = (phone || '').replace(/\D/g, '');
     if (!cleanPhone) {
-        showToast('⚠️ Sin teléfono');
+        showToast('Sin teléfono', 'warning');
         return;
     }
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+    window.open('https://wa.me/' + cleanPhone + '?text=' + encodeURIComponent(message), '_blank');
 }
 
 function sendAppointmentReminder(appointmentId) {
@@ -756,25 +842,18 @@ function sendAppointmentReminder(appointmentId) {
     const client = clients.find(c => c.id === appt.clientId);
     if (!client) return;
 
-    const message = `🐾 *RECORDATORIO - VetCare*
-
-Hola ${client.name}! 👋
-
-📅 *Fecha:* ${formatDateLong(appt.date)}
-🕐 *Hora:* ${appt.time}
-🐕 *Mascota:* ${pet?.name || ''}
-💉 *Tipo:* ${getTypeName(appt.type)}
-
-¡Lo esperamos! 🏥`;
+    const message = '🐾 *RECORDATORIO - VetCare*\n\nHola ' + client.name + '!\n\n📅 ' + formatDateLong(appt.date) + '\n🕐 ' + appt.time + '\n🐕 ' + (pet?.name || '') + '\n💉 ' + getTypeName(appt.type) + '\n\n¡Lo esperamos! 🏥';
 
     sendWhatsApp(client.phone, message);
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// MODALES
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 13: MODALES                                      ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function openModal(type) {
-    const modalId = `modal${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    const modalId = 'modal' + type.charAt(0).toUpperCase() + type.slice(1);
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.add('active');
@@ -785,23 +864,25 @@ function openModal(type) {
 }
 
 function closeModal(type) {
-    const modalId = `modal${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    const modalId = 'modal' + type.charAt(0).toUpperCase() + type.slice(1);
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('active');
 }
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', function(e) {
     if (e.target.classList.contains('modal-overlay')) {
         e.target.classList.remove('active');
     }
     if (!e.target.closest('.autocomplete-wrapper')) {
-        document.querySelectorAll('.autocomplete-list').forEach(el => el.classList.remove('show'));
+        document.querySelectorAll('.autocomplete-list').forEach(function(el) { el.classList.remove('show'); });
     }
 });
 
-// ══════════════════════════════════════════════════════════════════════
-// GUARDAR CLIENTE
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 14: GUARDAR CLIENTE                              ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 async function saveClient(e) {
     e.preventDefault();
     
@@ -812,25 +893,29 @@ async function saveClient(e) {
     const address = document.getElementById('clientAddress').value.trim();
     
     if (!cedula || !name || !phone) {
-        showToast('⚠️ Complete campos obligatorios');
+        showToast('Complete campos obligatorios', 'warning');
         return;
     }
     
     if (clients.find(c => c.cedula === cedula)) {
-        showToast('⚠️ CI ya existe');
+        showToast('CI ya existe', 'warning');
         return;
     }
     
     const newClient = {
         id: Date.now(),
-        cedula, name, phone, email, address,
+        cedula: cedula,
+        name: name,
+        phone: phone,
+        email: email,
+        address: address,
         color: generateColor()
     };
     
     try {
-        showToast('💾 Guardando...');
+        showToast('Guardando...', 'warning');
         
-        await appendToSheet(CONFIG.SHEETS.CLIENTES, [
+        await appendToSheet(SHEETS.CLIENTES, [
             newClient.id, cedula, name, phone, email, address, newClient.color, new Date().toISOString()
         ]);
         
@@ -838,24 +923,26 @@ async function saveClient(e) {
         closeModal('newClient');
         document.getElementById('formNewClient').reset();
         renderAll();
-        showToast('✅ Cliente guardado');
+        showToast('Cliente guardado', 'success');
         
     } catch (error) {
         console.error(error);
-        showToast('❌ Error: ' + (error.message || 'al guardar'));
+        showToast('Error al guardar', 'error');
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// FORMULARIO MASCOTA
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 15: FORMULARIO MASCOTA                           ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function resetPetForm() {
     selectedOwner = null;
     isNewOwner = false;
     selectedPetType = null;
     
     document.getElementById('formNewPet').reset();
-    document.querySelectorAll('.pet-option').forEach(o => o.classList.remove('selected'));
+    document.querySelectorAll('.pet-option').forEach(function(o) { o.classList.remove('selected'); });
     document.getElementById('ownerInfoCard').classList.remove('show');
     document.getElementById('newOwnerForm').style.display = 'none';
     document.getElementById('ownerAutocomplete').classList.remove('show');
@@ -864,7 +951,7 @@ function resetPetForm() {
 function selectPetType(type) {
     selectedPetType = type;
     document.getElementById('petType').value = type;
-    document.querySelectorAll('.pet-option').forEach(o => o.classList.toggle('selected', o.dataset.type === type));
+    document.querySelectorAll('.pet-option').forEach(function(o) { o.classList.toggle('selected', o.dataset.type === type); });
 }
 
 function searchOwner(query) {
@@ -881,15 +968,14 @@ function searchOwner(query) {
         return;
     }
     
-    const matches = clients.filter(c => c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()));
+    const matches = clients.filter(function(c) { 
+        return c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()); 
+    });
     
     if (matches.length > 0) {
-        autocomplete.innerHTML = matches.map(c => `
-            <div class="autocomplete-item" onclick="selectOwner(${c.id})">
-                <div class="autocomplete-item-name">${c.name} <span class="autocomplete-badge">CI: ${c.cedula}</span></div>
-                <div class="autocomplete-item-detail">📞 ${c.phone}</div>
-            </div>
-        `).join('');
+        autocomplete.innerHTML = matches.map(function(c) {
+            return '<div class="autocomplete-item" onclick="selectOwner(' + c.id + ')"><div class="autocomplete-item-name">' + c.name + ' <span class="autocomplete-badge">CI: ' + c.cedula + '</span></div><div class="autocomplete-item-detail">📞 ' + c.phone + '</div></div>';
+        }).join('');
         autocomplete.classList.add('show');
         newForm.style.display = 'none';
         isNewOwner = false;
@@ -908,13 +994,13 @@ function searchOwner(query) {
 }
 
 function selectOwner(clientId) {
-    const client = clients.find(c => c.id === clientId);
+    const client = clients.find(function(c) { return c.id === clientId; });
     if (!client) return;
     
     selectedOwner = client;
     isNewOwner = false;
     
-    document.getElementById('ownerSearch').value = `${client.name} - CI: ${client.cedula}`;
+    document.getElementById('ownerSearch').value = client.name + ' - CI: ' + client.cedula;
     document.getElementById('ownerSearch').classList.add('autocomplete-found');
     document.getElementById('petOwner').value = client.id;
     document.getElementById('ownerAutocomplete').classList.remove('show');
@@ -931,34 +1017,34 @@ async function savePet(e) {
     e.preventDefault();
     
     if (!selectedPetType) {
-        showToast('⚠️ Seleccione tipo');
+        showToast('Seleccione tipo', 'warning');
         return;
     }
     
     const name = document.getElementById('petName').value.trim();
     if (!name) {
-        showToast('⚠️ Ingrese nombre');
+        showToast('Ingrese nombre', 'warning');
         return;
     }
     
-    let ownerId, ownerCedula;
+    var ownerId, ownerCedula;
     
     if (isNewOwner) {
-        const newCedula = document.getElementById('newOwnerCedula').value.trim();
-        const newName = document.getElementById('newOwnerName').value.trim();
-        const newPhone = document.getElementById('newOwnerPhone').value.replace(/\D/g, '');
+        var newCedula = document.getElementById('newOwnerCedula').value.trim();
+        var newName = document.getElementById('newOwnerName').value.trim();
+        var newPhone = document.getElementById('newOwnerPhone').value.replace(/\D/g, '');
         
         if (!newCedula || !newName || !newPhone) {
-            showToast('⚠️ Complete datos del dueño');
+            showToast('Complete datos del dueño', 'warning');
             return;
         }
         
-        if (clients.find(c => c.cedula === newCedula)) {
-            showToast('⚠️ CI ya existe');
+        if (clients.find(function(c) { return c.cedula === newCedula; })) {
+            showToast('CI ya existe', 'warning');
             return;
         }
         
-        const newClient = {
+        var newClient = {
             id: Date.now(),
             cedula: newCedula,
             name: newName,
@@ -969,40 +1055,40 @@ async function savePet(e) {
         };
         
         try {
-            await appendToSheet(CONFIG.SHEETS.CLIENTES, [
+            await appendToSheet(SHEETS.CLIENTES, [
                 newClient.id, newCedula, newName, newPhone, newClient.email, '', newClient.color, new Date().toISOString()
             ]);
             clients.push(newClient);
             ownerId = newClient.id;
             ownerCedula = newCedula;
         } catch (error) {
-            showToast('❌ Error al crear dueño');
+            showToast('Error al crear dueño', 'error');
             return;
         }
     } else if (selectedOwner) {
         ownerId = selectedOwner.id;
         ownerCedula = selectedOwner.cedula;
     } else {
-        showToast('⚠️ Seleccione dueño');
+        showToast('Seleccione dueño', 'warning');
         return;
     }
     
-    const newPet = {
+    var newPet = {
         id: Date.now() + 1,
-        name,
+        name: name,
         type: selectedPetType,
         breed: document.getElementById('petBreed').value.trim(),
         age: document.getElementById('petAge').value.trim(),
         weight: parseFloat(document.getElementById('petWeight').value) || 0,
         owner: ownerId,
-        ownerCedula,
+        ownerCedula: ownerCedula,
         notes: document.getElementById('petNotes').value.trim()
     };
     
     try {
-        showToast('💾 Guardando...');
+        showToast('Guardando...', 'warning');
         
-        await appendToSheet(CONFIG.SHEETS.MASCOTAS, [
+        await appendToSheet(SHEETS.MASCOTAS, [
             newPet.id, newPet.name, selectedPetType, newPet.breed, newPet.age, newPet.weight, ownerId, ownerCedula, newPet.notes, new Date().toISOString()
         ]);
         
@@ -1010,17 +1096,19 @@ async function savePet(e) {
         closeModal('newPet');
         resetPetForm();
         renderAll();
-        showToast('✅ Mascota guardada');
+        showToast('Mascota guardada', 'success');
         
     } catch (error) {
         console.error(error);
-        showToast('❌ Error al guardar');
+        showToast('Error al guardar', 'error');
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// FORMULARIO CITAS
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 16: FORMULARIO CITAS                             ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function resetAppointmentForm() {
     selectedAppointmentClient = null;
     selectedAppointmentPet = null;
@@ -1034,22 +1122,21 @@ function resetAppointmentForm() {
 }
 
 function searchClientForAppointment(query) {
-    const autocomplete = document.getElementById('appointmentClientAutocomplete');
+    var autocomplete = document.getElementById('appointmentClientAutocomplete');
     
     if (query.length < 2) {
         autocomplete.classList.remove('show');
         return;
     }
     
-    const matches = clients.filter(c => c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()));
+    var matches = clients.filter(function(c) { 
+        return c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()); 
+    });
     
     if (matches.length > 0) {
-        autocomplete.innerHTML = matches.map(c => {
-            const cPets = pets.filter(p => p.owner === c.id);
-            return `<div class="autocomplete-item" onclick="selectClientForAppointment(${c.id})">
-                <div class="autocomplete-item-name">${c.name} <span class="autocomplete-badge">CI: ${c.cedula}</span></div>
-                <div class="autocomplete-item-detail">🐾 ${cPets.length} mascota(s)</div>
-            </div>`;
+        autocomplete.innerHTML = matches.map(function(c) {
+            var cPets = pets.filter(function(p) { return p.owner === c.id; });
+            return '<div class="autocomplete-item" onclick="selectClientForAppointment(' + c.id + ')"><div class="autocomplete-item-name">' + c.name + ' <span class="autocomplete-badge">CI: ' + c.cedula + '</span></div><div class="autocomplete-item-detail">🐾 ' + cPets.length + ' mascota(s)</div></div>';
         }).join('');
         autocomplete.classList.add('show');
     } else {
@@ -1058,13 +1145,13 @@ function searchClientForAppointment(query) {
 }
 
 function selectClientForAppointment(clientId) {
-    const client = clients.find(c => c.id === clientId);
+    var client = clients.find(function(c) { return c.id === clientId; });
     if (!client) return;
     
     selectedAppointmentClient = client;
-    const clientPets = pets.filter(p => p.owner === client.id);
+    var clientPets = pets.filter(function(p) { return p.owner === client.id; });
     
-    document.getElementById('appointmentClientSearch').value = `${client.name} - CI: ${client.cedula}`;
+    document.getElementById('appointmentClientSearch').value = client.name + ' - CI: ' + client.cedula;
     document.getElementById('appointmentClientSearch').classList.add('autocomplete-found');
     document.getElementById('appointmentClientId').value = client.id;
     document.getElementById('appointmentClientAutocomplete').classList.remove('show');
@@ -1076,22 +1163,19 @@ function selectClientForAppointment(clientId) {
     document.getElementById('appointmentClientCard').classList.add('show');
     
     if (clientPets.length > 0) {
-        document.getElementById('appointmentPetGrid').innerHTML = clientPets.map(p => `
-            <div class="pet-selection-card" data-pet-id="${p.id}" onclick="selectPetForAppointment(${p.id})">
-                <div class="pet-selection-icon">${getPetIcon(p.type)}</div>
-                <div class="pet-selection-name">${p.name}</div>
-            </div>
-        `).join('');
+        document.getElementById('appointmentPetGrid').innerHTML = clientPets.map(function(p) {
+            return '<div class="pet-selection-card" data-pet-id="' + p.id + '" onclick="selectPetForAppointment(' + p.id + ')"><div class="pet-selection-icon">' + getPetIcon(p.type) + '</div><div class="pet-selection-name">' + p.name + '</div></div>';
+        }).join('');
         document.getElementById('appointmentPetSelection').style.display = 'block';
     } else {
-        showToast('⚠️ Sin mascotas');
+        showToast('Sin mascotas', 'warning');
     }
 }
 
 function selectPetForAppointment(petId) {
-    selectedAppointmentPet = pets.find(p => p.id === petId);
+    selectedAppointmentPet = pets.find(function(p) { return p.id === petId; });
     document.getElementById('appointmentPetId').value = petId;
-    document.querySelectorAll('#appointmentPetGrid .pet-selection-card').forEach(c => {
+    document.querySelectorAll('#appointmentPetGrid .pet-selection-card').forEach(function(c) {
         c.classList.toggle('selected', parseInt(c.dataset.petId) === petId);
     });
     document.getElementById('appointmentDetails').style.display = 'block';
@@ -1102,63 +1186,59 @@ async function saveAppointment(e) {
     e.preventDefault();
     
     if (!selectedAppointmentClient || !selectedAppointmentPet) {
-        showToast('⚠️ Seleccione cliente y mascota');
+        showToast('Seleccione cliente y mascota', 'warning');
         return;
     }
     
-    const date = document.getElementById('appointmentDate').value;
-    const time = document.getElementById('appointmentTime').value;
-    const type = document.getElementById('appointmentType').value;
-    const notes = document.getElementById('appointmentNotes').value.trim();
+    var date = document.getElementById('appointmentDate').value;
+    var time = document.getElementById('appointmentTime').value;
+    var type = document.getElementById('appointmentType').value;
+    var notes = document.getElementById('appointmentNotes').value.trim();
     
     if (!date || !time) {
-        showToast('⚠️ Complete fecha y hora');
+        showToast('Complete fecha y hora', 'warning');
         return;
     }
     
-    const newAppt = {
+    var newAppt = {
         id: Date.now(),
         petId: selectedAppointmentPet.id,
         clientId: selectedAppointmentClient.id,
-        date, time, type, notes,
+        date: date,
+        time: time,
+        type: type,
+        notes: notes,
         completed: false
     };
     
     try {
-        showToast('💾 Guardando...');
+        showToast('Guardando...', 'warning');
         
-        await appendToSheet(CONFIG.SHEETS.CITAS, [
+        await appendToSheet(SHEETS.CITAS, [
             newAppt.id, newAppt.petId, newAppt.clientId, date, time, type, notes, 'PENDIENTE', 'TRUE', new Date().toISOString()
         ]);
         
         appointments.push(newAppt);
         
-        const message = `🐾 *CITA AGENDADA - VetCare*
-
-Hola ${selectedAppointmentClient.name}!
-
-📅 ${formatDateLong(date)}
-🕐 ${time}
-🐕 ${selectedAppointmentPet.name}
-💉 ${getTypeName(type)}
-
-¡Lo esperamos! 🏥`;
+        var message = '🐾 *CITA AGENDADA - VetCare*\n\nHola ' + selectedAppointmentClient.name + '!\n\n📅 ' + formatDateLong(date) + '\n🕐 ' + time + '\n🐕 ' + selectedAppointmentPet.name + '\n💉 ' + getTypeName(type) + '\n\n¡Lo esperamos! 🏥';
 
         sendWhatsApp(selectedAppointmentClient.phone, message);
         
         closeModal('newAppointment');
         renderAll();
-        showToast('✅ Cita agendada');
+        showToast('Cita agendada', 'success');
         
     } catch (error) {
         console.error(error);
-        showToast('❌ Error al guardar');
+        showToast('Error al guardar', 'error');
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// FORMULARIO HISTORIAL
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 17: FORMULARIO HISTORIAL                         ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function resetHistoryForm() {
     selectedHistoryClient = null;
     selectedHistoryPet = null;
@@ -1173,22 +1253,21 @@ function resetHistoryForm() {
 }
 
 function searchClientForHistory(query) {
-    const autocomplete = document.getElementById('historyClientAutocomplete');
+    var autocomplete = document.getElementById('historyClientAutocomplete');
     
     if (query.length < 2) {
         autocomplete.classList.remove('show');
         return;
     }
     
-    const matches = clients.filter(c => c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()));
+    var matches = clients.filter(function(c) { 
+        return c.cedula.includes(query) || c.name.toLowerCase().includes(query.toLowerCase()); 
+    });
     
     if (matches.length > 0) {
-        autocomplete.innerHTML = matches.map(c => {
-            const cPets = pets.filter(p => p.owner === c.id);
-            return `<div class="autocomplete-item" onclick="selectClientForHistory(${c.id})">
-                <div class="autocomplete-item-name">${c.name} <span class="autocomplete-badge">CI: ${c.cedula}</span></div>
-                <div class="autocomplete-item-detail">🐾 ${cPets.length} mascota(s)</div>
-            </div>`;
+        autocomplete.innerHTML = matches.map(function(c) {
+            var cPets = pets.filter(function(p) { return p.owner === c.id; });
+            return '<div class="autocomplete-item" onclick="selectClientForHistory(' + c.id + ')"><div class="autocomplete-item-name">' + c.name + ' <span class="autocomplete-badge">CI: ' + c.cedula + '</span></div><div class="autocomplete-item-detail">🐾 ' + cPets.length + ' mascota(s)</div></div>';
         }).join('');
         autocomplete.classList.add('show');
     } else {
@@ -1197,13 +1276,13 @@ function searchClientForHistory(query) {
 }
 
 function selectClientForHistory(clientId) {
-    const client = clients.find(c => c.id === clientId);
+    var client = clients.find(function(c) { return c.id === clientId; });
     if (!client) return;
     
     selectedHistoryClient = client;
-    const clientPets = pets.filter(p => p.owner === client.id);
+    var clientPets = pets.filter(function(p) { return p.owner === client.id; });
     
-    document.getElementById('historyClientSearch').value = `${client.name} - CI: ${client.cedula}`;
+    document.getElementById('historyClientSearch').value = client.name + ' - CI: ' + client.cedula;
     document.getElementById('historyClientSearch').classList.add('autocomplete-found');
     document.getElementById('historyClientId').value = client.id;
     document.getElementById('historyClientAutocomplete').classList.remove('show');
@@ -1213,29 +1292,26 @@ function selectClientForHistory(clientId) {
     document.getElementById('historyClientCard').classList.add('show');
     
     if (clientPets.length > 0) {
-        document.getElementById('historyPetGrid').innerHTML = clientPets.map(p => `
-            <div class="pet-selection-card" data-pet-id="${p.id}" onclick="selectPetForHistory(${p.id})">
-                <div class="pet-selection-icon">${getPetIcon(p.type)}</div>
-                <div class="pet-selection-name">${p.name}</div>
-            </div>
-        `).join('');
+        document.getElementById('historyPetGrid').innerHTML = clientPets.map(function(p) {
+            return '<div class="pet-selection-card" data-pet-id="' + p.id + '" onclick="selectPetForHistory(' + p.id + ')"><div class="pet-selection-icon">' + getPetIcon(p.type) + '</div><div class="pet-selection-name">' + p.name + '</div></div>';
+        }).join('');
         document.getElementById('historyPetSelection').style.display = 'block';
     } else {
-        showToast('⚠️ Sin mascotas');
+        showToast('Sin mascotas', 'warning');
     }
 }
 
 function selectPetForHistory(petId) {
-    selectedHistoryPet = pets.find(p => p.id === petId);
+    selectedHistoryPet = pets.find(function(p) { return p.id === petId; });
     document.getElementById('historyPetId').value = petId;
-    document.querySelectorAll('#historyPetGrid .pet-selection-card').forEach(c => {
+    document.querySelectorAll('#historyPetGrid .pet-selection-card').forEach(function(c) {
         c.classList.toggle('selected', parseInt(c.dataset.petId) === petId);
     });
     document.getElementById('historyDetails').style.display = 'block';
 }
 
 function handleFileSelect(event) {
-    Array.from(event.target.files).forEach(file => {
+    Array.from(event.target.files).forEach(function(file) {
         if (file.size <= 10 * 1024 * 1024) {
             selectedFiles.push(file);
         }
@@ -1244,15 +1320,9 @@ function handleFileSelect(event) {
 }
 
 function renderFileList() {
-    document.getElementById('fileList').innerHTML = selectedFiles.map((file, i) => `
-        <div class="file-item">
-            <div class="file-item-info">
-                <span>${file.type.startsWith('image/') ? '🖼️' : '📄'}</span>
-                <div><div class="file-item-name">${file.name}</div><div class="file-item-size">${(file.size / 1024).toFixed(0)} KB</div></div>
-            </div>
-            <button type="button" class="file-remove-btn" onclick="removeFile(${i})">✕</button>
-        </div>
-    `).join('');
+    document.getElementById('fileList').innerHTML = selectedFiles.map(function(file, i) {
+        return '<div class="file-item"><div class="file-item-info"><span>' + (file.type.startsWith('image/') ? '🖼️' : '📄') + '</span><div><div class="file-item-name">' + file.name + '</div><div class="file-item-size">' + (file.size / 1024).toFixed(0) + ' KB</div></div></div><button type="button" class="file-remove-btn" onclick="removeFile(' + i + ')">✕</button></div>';
+    }).join('');
 }
 
 function removeFile(index) {
@@ -1264,45 +1334,46 @@ async function saveHistory(e) {
     e.preventDefault();
     
     if (!selectedHistoryClient || !selectedHistoryPet) {
-        showToast('⚠️ Seleccione cliente y mascota');
+        showToast('Seleccione cliente y mascota', 'warning');
         return;
     }
     
-    const diagnosis = document.getElementById('historyDiagnosis').value.trim();
+    var diagnosis = document.getElementById('historyDiagnosis').value.trim();
     if (!diagnosis) {
-        showToast('⚠️ Ingrese diagnóstico');
+        showToast('Ingrese diagnóstico', 'warning');
         return;
     }
     
     try {
-        showToast('💾 Guardando...');
+        showToast('Guardando...', 'warning');
         
-        const uploadedFiles = [];
-        for (const file of selectedFiles) {
-            showToast(`📤 Subiendo ${file.name}...`);
-            const uploaded = await uploadFileToDrive(file);
+        var uploadedFiles = [];
+        for (var i = 0; i < selectedFiles.length; i++) {
+            showToast('Subiendo ' + selectedFiles[i].name + '...', 'warning');
+            var uploaded = await uploadFileToDrive(selectedFiles[i]);
             uploadedFiles.push(uploaded);
         }
         
-        const newHistory = {
+        var newHistory = {
             id: Date.now(),
             petId: selectedHistoryPet.id,
             clientId: selectedHistoryClient.id,
             date: getTodayDate(),
             type: document.getElementById('historyType').value,
-            diagnosis,
+            diagnosis: diagnosis,
             treatment: document.getElementById('historyTreatment').value.trim(),
             meds: document.getElementById('historyMeds').value.trim(),
             attachments: uploadedFiles
         };
         
-        await appendToSheet(CONFIG.SHEETS.HISTORIAL, [
+        await appendToSheet(SHEETS.HISTORIAL, [
             newHistory.id, newHistory.petId, newHistory.clientId, newHistory.date, newHistory.type, diagnosis, newHistory.treatment, newHistory.meds, '', new Date().toISOString()
         ]);
         
-        for (const file of uploadedFiles) {
-            await appendToSheet(CONFIG.SHEETS.ARCHIVOS, [
-                Date.now(), newHistory.id, newHistory.petId, newHistory.clientId, file.name, file.type, Math.round(file.size / 1024), file.url, new Date().toISOString()
+        for (var j = 0; j < uploadedFiles.length; j++) {
+            var file = uploadedFiles[j];
+            await appendToSheet(SHEETS.ARCHIVOS, [
+                Date.now() + j, newHistory.id, newHistory.petId, newHistory.clientId, file.name, file.type, Math.round(file.size / 1024), file.url, new Date().toISOString()
             ]);
         }
         
@@ -1310,185 +1381,144 @@ async function saveHistory(e) {
         closeModal('newHistory');
         resetHistoryForm();
         renderAll();
-        showToast('✅ Consulta guardada');
+        showToast('Consulta guardada', 'success');
         
     } catch (error) {
         console.error(error);
-        showToast('❌ Error al guardar');
+        showToast('Error al guardar', 'error');
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// VER HISTORIAL
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 18: VER HISTORIAL                                ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function viewPetHistory(petId) {
-    const pet = pets.find(p => p.id === petId);
+    var pet = pets.find(function(p) { return p.id === petId; });
     if (!pet) return;
     
-    const owner = clients.find(c => c.id === pet.owner);
-    const petHist = history.filter(h => h.petId === petId).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    var owner = clients.find(function(c) { return c.id === pet.owner; });
+    var petHist = history.filter(function(h) { return h.petId === petId; }).sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
     
-    document.getElementById('viewHistoryContent').innerHTML = `
-        <div id="printableHistory">
-            <div style="text-align: center; margin-bottom: 1.5rem; border-bottom: 3px solid var(--primary); padding-bottom: 1rem;">
-                <h1 style="font-family: 'Fredoka One', cursive; color: var(--primary);">🐾 VetCare</h1>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
-                <div style="background: var(--cream); padding: 1rem; border-radius: 12px;">
-                    <h3 style="color: var(--primary);">${getPetIcon(pet.type)} Mascota</h3>
-                    <p><b>Nombre:</b> ${pet.name}</p>
-                    <p><b>Tipo:</b> ${getPetTypeName(pet.type)}</p>
-                    <p><b>Raza:</b> ${pet.breed || '-'}</p>
-                    <p><b>Edad:</b> ${pet.age || '-'}</p>
-                </div>
-                <div style="background: var(--mint); padding: 1rem; border-radius: 12px;">
-                    <h3 style="color: var(--primary);">👤 Propietario</h3>
-                    <p><b>Nombre:</b> ${owner?.name || '-'}</p>
-                    <p><b>CI:</b> ${owner?.cedula || '-'}</p>
-                    <p><b>Tel:</b> ${owner?.phone || '-'}</p>
-                </div>
-            </div>
-            <h3 style="color: var(--primary);">📋 Historial</h3>
-            ${petHist.length === 0 ? '<p style="text-align: center; color: var(--text-light);">Sin registros</p>' : 
-            petHist.map(h => `
-                <div style="background: var(--cream); padding: 1rem; border-radius: 12px; margin: 0.5rem 0; border-left: 4px solid var(--primary);">
-                    <div style="display: flex; justify-content: space-between;">
-                        <b>${getTypeIcon(h.type)} ${getTypeName(h.type)}</b>
-                        <span style="color: var(--text-light);">${formatDate(h.date)}</span>
-                    </div>
-                    <p><b>Diagnóstico:</b> ${h.diagnosis}</p>
-                    ${h.treatment ? `<p><b>Tratamiento:</b> ${h.treatment}</p>` : ''}
-                    ${h.meds ? `<p><b>Medicamentos:</b> ${h.meds}</p>` : ''}
-                    ${h.attachments?.length ? `<div>${h.attachments.map(a => `<a href="${a.url}" target="_blank" class="attachment-badge">📎 ${a.name}</a>`).join(' ')}</div>` : ''}
-                </div>
-            `).join('')}
-        </div>
-    `;
+    document.getElementById('viewHistoryContent').innerHTML = '<div id="printableHistory"><div style="text-align: center; margin-bottom: 1.5rem; border-bottom: 3px solid var(--primary); padding-bottom: 1rem;"><h1 style="font-family: Fredoka One, cursive; color: var(--primary);">🐾 VetCare</h1></div><div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;"><div style="background: var(--cream); padding: 1rem; border-radius: 12px;"><h3 style="color: var(--primary);">' + getPetIcon(pet.type) + ' Mascota</h3><p><b>Nombre:</b> ' + pet.name + '</p><p><b>Tipo:</b> ' + getPetTypeName(pet.type) + '</p><p><b>Raza:</b> ' + (pet.breed || '-') + '</p><p><b>Edad:</b> ' + (pet.age || '-') + '</p></div><div style="background: var(--mint); padding: 1rem; border-radius: 12px;"><h3 style="color: var(--primary);">👤 Propietario</h3><p><b>Nombre:</b> ' + (owner?.name || '-') + '</p><p><b>CI:</b> ' + (owner?.cedula || '-') + '</p><p><b>Tel:</b> ' + (owner?.phone || '-') + '</p></div></div><h3 style="color: var(--primary);">📋 Historial</h3>' + (petHist.length === 0 ? '<p style="text-align: center; color: var(--text-light);">Sin registros</p>' : petHist.map(function(h) { return '<div style="background: var(--cream); padding: 1rem; border-radius: 12px; margin: 0.5rem 0; border-left: 4px solid var(--primary);"><div style="display: flex; justify-content: space-between;"><b>' + getTypeIcon(h.type) + ' ' + getTypeName(h.type) + '</b><span style="color: var(--text-light);">' + formatDate(h.date) + '</span></div><p><b>Diagnóstico:</b> ' + h.diagnosis + '</p>' + (h.treatment ? '<p><b>Tratamiento:</b> ' + h.treatment + '</p>' : '') + (h.meds ? '<p><b>Medicamentos:</b> ' + h.meds + '</p>' : '') + (h.attachments?.length ? '<div>' + h.attachments.map(function(a) { return '<a href="' + a.url + '" target="_blank" class="attachment-badge">📎 ' + a.name + '</a>'; }).join(' ') + '</div>' : '') + '</div>'; }).join('')) + '</div>';
     
     openModal('viewHistory');
 }
 
 function printHistory() {
-    const content = document.getElementById('printableHistory');
+    var content = document.getElementById('printableHistory');
     if (!content) return;
     
-    const win = window.open('', '_blank');
-    win.document.write(`<!DOCTYPE html><html><head><title>Historial</title>
-        <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Fredoka+One&display=swap" rel="stylesheet">
-        <style>body{font-family:'Nunito',sans-serif;color:#4A5568;padding:2cm;}h1,h3{font-family:'Fredoka One',cursive;}.attachment-badge{background:#E6E0F0;padding:2px 8px;border-radius:4px;font-size:12px;text-decoration:none;}</style>
-    </head><body>${content.innerHTML}</body></html>`);
+    var win = window.open('', '_blank');
+    win.document.write('<!DOCTYPE html><html><head><title>Historial</title><link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&family=Fredoka+One&display=swap" rel="stylesheet"><style>body{font-family:Nunito,sans-serif;color:#4A5568;padding:2cm;}h1,h3{font-family:Fredoka One,cursive;}.attachment-badge{background:#E6E0F0;padding:2px 8px;border-radius:4px;font-size:12px;text-decoration:none;}</style></head><body>' + content.innerHTML + '</body></html>');
     win.document.close();
-    win.onload = () => win.print();
+    win.onload = function() { win.print(); };
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// ACCIONES
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 19: ACCIONES                                     ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 async function completeAppointment(id, rowIndex) {
     if (!confirm('¿Marcar como completada?')) return;
     
-    const appt = appointments.find(a => a.id === id);
+    var appt = appointments.find(function(a) { return a.id === id; });
     if (!appt) return;
     
     try {
-        showToast('💾 Actualizando...');
-        await updateSheetRow(CONFIG.SHEETS.CITAS, rowIndex, [
+        showToast('Actualizando...', 'warning');
+        await updateSheetRow(SHEETS.CITAS, rowIndex, [
             appt.id, appt.petId, appt.clientId, appt.date, appt.time, appt.type, appt.notes, 'COMPLETADA', 'TRUE', new Date().toISOString()
         ]);
         appt.completed = true;
         renderAll();
-        showToast('✅ Completada');
+        showToast('Completada', 'success');
     } catch (error) {
-        showToast('❌ Error');
+        showToast('Error', 'error');
     }
 }
 
 async function deleteClient(id, rowIndex) {
     if (!confirm('¿Eliminar cliente?')) return;
     try {
-        showToast('🗑️ Eliminando...');
-        await deleteSheetRow(CONFIG.SHEETS.CLIENTES, rowIndex);
-        clients = clients.filter(c => c.id !== id);
+        showToast('Eliminando...', 'warning');
+        await deleteSheetRow(SHEETS.CLIENTES, rowIndex);
+        clients = clients.filter(function(c) { return c.id !== id; });
         renderAll();
-        showToast('✅ Eliminado');
+        showToast('Eliminado', 'success');
     } catch (error) {
-        showToast('❌ Error');
+        showToast('Error', 'error');
     }
 }
 
 async function deletePet(id, rowIndex) {
     if (!confirm('¿Eliminar mascota?')) return;
     try {
-        showToast('🗑️ Eliminando...');
-        await deleteSheetRow(CONFIG.SHEETS.MASCOTAS, rowIndex);
-        pets = pets.filter(p => p.id !== id);
+        showToast('Eliminando...', 'warning');
+        await deleteSheetRow(SHEETS.MASCOTAS, rowIndex);
+        pets = pets.filter(function(p) { return p.id !== id; });
         renderAll();
-        showToast('✅ Eliminado');
+        showToast('Eliminado', 'success');
     } catch (error) {
-        showToast('❌ Error');
+        showToast('Error', 'error');
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// FILTROS
-// ══════════════════════════════════════════════════════════════════════
+
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 20: FILTROS                                      ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function filterClients() {
-    const q = (document.getElementById('clientSearch').value || '').toLowerCase();
-    renderAllClients(clients.filter(c => c.name.toLowerCase().includes(q) || c.cedula.includes(q) || c.phone.includes(q)));
+    var q = (document.getElementById('clientSearch').value || '').toLowerCase();
+    renderAllClients(clients.filter(function(c) { return c.name.toLowerCase().includes(q) || c.cedula.includes(q) || c.phone.includes(q); }));
 }
 
 function filterPets() {
-    const q = (document.getElementById('petSearch').value || '').toLowerCase();
-    renderAllPets(pets.filter(p => {
-        const owner = clients.find(c => c.id === p.owner);
+    var q = (document.getElementById('petSearch').value || '').toLowerCase();
+    renderAllPets(pets.filter(function(p) {
+        var owner = clients.find(function(c) { return c.id === p.owner; });
         return p.name.toLowerCase().includes(q) || (owner && owner.name.toLowerCase().includes(q));
     }));
 }
 
 function filterHistory() {
-    const q = (document.getElementById('historySearch').value || '').toLowerCase();
-    renderHistory(history.filter(h => {
-        const pet = pets.find(p => p.id === h.petId);
+    var q = (document.getElementById('historySearch').value || '').toLowerCase();
+    renderHistory(history.filter(function(h) {
+        var pet = pets.find(function(p) { return p.id === h.petId; });
         return (h.diagnosis || '').toLowerCase().includes(q) || (pet && pet.name.toLowerCase().includes(q));
     }));
 }
 
 function globalSearchFn() {
-    const q = (document.getElementById('globalSearch').value || '').toLowerCase();
-    const results = document.getElementById('searchResults');
+    var q = (document.getElementById('globalSearch').value || '').toLowerCase();
+    var results = document.getElementById('searchResults');
     
     if (!q) { results.innerHTML = ''; return; }
     
-    let html = '';
-    const mc = clients.filter(c => c.name.toLowerCase().includes(q) || c.cedula.includes(q));
-    const mp = pets.filter(p => p.name.toLowerCase().includes(q));
+    var html = '';
+    var mc = clients.filter(function(c) { return c.name.toLowerCase().includes(q) || c.cedula.includes(q); });
+    var mp = pets.filter(function(p) { return p.name.toLowerCase().includes(q); });
     
     if (mc.length) {
         html += '<h4 style="margin: 1rem 0 0.5rem; color: var(--primary);">👥 Clientes</h4>';
-        html += mc.map(c => `<div class="appointment-card">${c.name} <span class="ci-badge">CI: ${c.cedula}</span></div>`).join('');
+        html += mc.map(function(c) { return '<div class="appointment-card">' + c.name + ' <span class="ci-badge">CI: ' + c.cedula + '</span></div>'; }).join('');
     }
     if (mp.length) {
         html += '<h4 style="margin: 1rem 0 0.5rem; color: var(--primary);">🐾 Mascotas</h4>';
-        html += mp.map(p => `<div class="appointment-card">${getPetIcon(p.type)} ${p.name}</div>`).join('');
+        html += mp.map(function(p) { return '<div class="appointment-card">' + getPetIcon(p.type) + ' ' + p.name + '</div>'; }).join('');
     }
     
     results.innerHTML = html || '<p style="text-align: center; color: var(--text-light); padding: 2rem;">Sin resultados</p>';
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// TOAST
-// ══════════════════════════════════════════════════════════════════════
-function showToast(message) {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.querySelector('.toast-message').textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3000);
-}
 
-// ══════════════════════════════════════════════════════════════════════
-// RENDER ALL
-// ══════════════════════════════════════════════════════════════════════
+// ╔════════════════════════════════════════════════════════════════════════════╗
+// ║                    SECCIÓN 21: RENDER ALL                                   ║
+// ╚════════════════════════════════════════════════════════════════════════════╝
+
 function renderAll() {
     updateStats();
     renderRecentClients();
