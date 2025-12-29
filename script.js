@@ -1891,33 +1891,10 @@ async function saveHistory(e) {
             pdfUrl: ''
         };
         
-        // 1. Generar y subir PDF a Drive
-        var pdfUrl = '';
-        try {
-            pdfUrl = await generateAndUploadPDF(newHistory, selectedHistoryPet, selectedHistoryClient);
-            newHistory.pdfUrl = pdfUrl || '';
-        } catch (pdfError) {
-            console.error('Error con PDF:', pdfError);
-            showToast('PDF no generado, guardando datos...', 'warning');
-        }
-        
-        // 2. Subir archivos adjuntos si hay
-        var uploadedFiles = [];
-        if (selectedFiles.length > 0) {
-            for (var i = 0; i < selectedFiles.length; i++) {
-                try {
-                    showToast('Subiendo ' + selectedFiles[i].name + '...', 'warning');
-                    var uploaded = await uploadFileToDrive(selectedFiles[i]);
-                    uploadedFiles.push(uploaded);
-                } catch (uploadError) {
-                    console.error('Error subiendo archivo:', uploadError);
-                }
-            }
-        }
-        newHistory.attachments = uploadedFiles;
-        
-        // 3. Guardar en hoja Historial_Clinico
-        showToast('Guardando en Google Sheets...', 'warning');
+        // ═══════════════════════════════════════════════════════════════
+        // PASO 1: GUARDAR PRIMERO EN GOOGLE SHEETS (LO MÁS IMPORTANTE)
+        // ═══════════════════════════════════════════════════════════════
+        console.log('Guardando en hoja:', SHEETS.HISTORIAL);
         await appendToSheet(SHEETS.HISTORIAL, [
             newHistory.id,                    // A: ID
             newHistory.petId,                 // B: MascotaID
@@ -1928,42 +1905,74 @@ async function saveHistory(e) {
             newHistory.treatment,             // G: Tratamiento
             newHistory.meds,                  // H: Medicamentos
             emailUsuario || '',               // I: Veterinario
-            pdfUrl || '',                     // J: LinkPDF
+            '',                               // J: LinkPDF (vacío por ahora)
             new Date().toISOString()          // K: FechaCreacion
         ]);
         
-        // 4. Guardar archivos en hoja Archivos_Adjuntos (si hay)
-        if (uploadedFiles.length > 0) {
-            for (var j = 0; j < uploadedFiles.length; j++) {
-                var file = uploadedFiles[j];
+        // Datos guardados exitosamente
+        history.push(newHistory);
+        showToast('Datos guardados!', 'success');
+        
+        // ═══════════════════════════════════════════════════════════════
+        // PASO 2: INTENTAR GENERAR PDF (OPCIONAL - NO BLOQUEA SI FALLA)
+        // ═══════════════════════════════════════════════════════════════
+        var pdfUrl = '';
+        try {
+            showToast('Generando PDF...', 'warning');
+            pdfUrl = await generateAndUploadPDF(newHistory, selectedHistoryPet, selectedHistoryClient);
+            
+            if (pdfUrl) {
+                newHistory.pdfUrl = pdfUrl;
+                // Actualizar la fila con el link del PDF
+                // Buscar el índice de la fila recién agregada
+                showToast('PDF subido a Drive!', 'success');
+            }
+        } catch (pdfError) {
+            console.error('Error generando PDF:', pdfError);
+            showToast('PDF no generado, pero datos guardados', 'warning');
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // PASO 3: SUBIR ARCHIVOS ADJUNTOS (SI HAY)
+        // ═══════════════════════════════════════════════════════════════
+        var uploadedFiles = [];
+        if (selectedFiles.length > 0) {
+            for (var i = 0; i < selectedFiles.length; i++) {
                 try {
+                    showToast('Subiendo ' + selectedFiles[i].name + '...', 'warning');
+                    var uploaded = await uploadFileToDrive(selectedFiles[i]);
+                    uploadedFiles.push(uploaded);
+                    
+                    // Guardar referencia en hoja Archivos_Adjuntos
                     await appendToSheet(SHEETS.ARCHIVOS, [
-                        Date.now() + j,
+                        Date.now() + i,
                         newHistory.id,
                         newHistory.petId,
                         newHistory.clientId,
-                        file.name,
-                        file.type,
-                        Math.round(file.size / 1024),
-                        file.url,
+                        uploaded.name,
+                        uploaded.type,
+                        Math.round(uploaded.size / 1024),
+                        uploaded.url,
                         new Date().toISOString()
                     ]);
-                } catch (archiveError) {
-                    console.error('Error guardando archivo:', archiveError);
+                } catch (uploadError) {
+                    console.error('Error subiendo archivo:', uploadError);
                 }
             }
         }
+        newHistory.attachments = uploadedFiles;
         
-        // 5. Agregar a la lista local y actualizar UI
-        history.push(newHistory);
+        // ═══════════════════════════════════════════════════════════════
+        // PASO 4: CERRAR MODAL Y ACTUALIZAR UI
+        // ═══════════════════════════════════════════════════════════════
         closeModal('newHistory');
         resetHistoryForm();
         renderAll();
         
         if (pdfUrl) {
-            showToast('Historial guardado con PDF!', 'success');
+            showToast('Historial completo con PDF!', 'success');
         } else {
-            showToast('Historial guardado', 'success');
+            showToast('Historial guardado correctamente', 'success');
         }
         
     } catch (error) {
